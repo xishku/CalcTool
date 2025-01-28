@@ -2,4 +2,9 @@ __pycache__/       """Python 文件编译后的缓存目录。git上传时会忽
 *.pyc        """Python 文件编译后的字节码文件（如 .pyc、.pyo、.pyd）。"""
 *$py.class
 
-app
+*.xlsx
+*.xlsm
+
+*.exe
+
+
