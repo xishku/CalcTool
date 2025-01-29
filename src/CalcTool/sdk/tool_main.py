@@ -13,6 +13,7 @@ import openpyxl
 from openpyxl.comments import Comment
 from .logger import Logger
 from .tdx_data_agent import TdxDataAgent
+from .data_online import TdxOnlineHqAgent
 
 
 class CalcLast1YearCount:
@@ -200,9 +201,10 @@ class CalcLast1YearCount:
             df_kdata = agent.read_kdata(str(int(cur_tick)).zfill(6))
             Logger.log().debug(f"str(cur_tick) = {str(cur_tick)} df_kdata = {df_kdata}") 
             if not df_kdata.empty:
-                origin = agent.get_extreme_between_days(str(cur_tick), df_kdata, int(t2_date), int(target_date))
-                pre = agent.get_pre_extreme_between_days(str(cur_tick), df_kdata, int(t2_date), int(target_date))
-                post = agent.get_post_extreme_between_days(str(cur_tick), df_kdata, int(t2_date), int(target_date))
+                xdxr = TdxOnlineHqAgent().get_xdxr_info(str(cur_tick))
+                origin = agent.get_extreme_between_days(str(cur_tick), df_kdata, int(t2_date), int(target_date), xdxr)
+                pre = agent.get_pre_extreme_between_days(str(cur_tick), df_kdata, int(t2_date), int(target_date), xdxr)
+                post = agent.get_post_extreme_between_days(str(cur_tick), df_kdata, int(t2_date), int(target_date), xdxr)
                 extreme_cache[cur_row] = (origin, pre, post)
 
             data_cache[date_str].add(cur_tick)

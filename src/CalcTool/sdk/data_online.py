@@ -1,6 +1,7 @@
 from pytdx.hq import TdxHq_API 
 from pytdx.util.best_ip import select_best_ip
 from .logger import Logger
+from .timeit_decorator import Dec
 
 
 def get_best_tdx_server():    
@@ -46,6 +47,7 @@ def main():    # 自动获取最快的通达信服务器地址和端口
     print("已断开与通达信服务器的连接")
 
 class TdxOnlineHqAgent:
+    @Dec.timeit_decorator
     def get_xdxr_info(self, code: str):
         api = TdxHq_API(heartbeat=True, auto_retry=True)
         try:

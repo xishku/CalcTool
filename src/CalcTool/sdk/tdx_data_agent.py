@@ -12,6 +12,7 @@ import datetime
 
 from .logger import Logger
 from .data_online import TdxOnlineHqAgent
+from .timeit_decorator import Dec
 
 
 TDX_BASE = 'C:/new_tdx'
@@ -136,12 +137,13 @@ class TdxDataAgent:
                 data_df.loc[index, 'r_open'] = self.value_pre_adj(item['r_open'], fenhong, songzhuanggu)
                 data_df.loc[index, 'r_close'] = self.value_pre_adj(item['r_close'], fenhong, songzhuanggu)
     
-    def get_extreme_value(self, code, result_df, start_date, end_date, adj_function = None):
+    @Dec.timeit_decorator
+    def get_extreme_value(self, code, result_df, start_date, end_date, adj_function = None, xdxr = None):
         if result_df.shape[0] == 0:
             return None
         
-        agent = TdxOnlineHqAgent()
-        xdxr = agent.get_xdxr_info(code)
+        # agent = TdxOnlineHqAgent()
+        # xdxr = agent.get_xdxr_info(code)
         # self.post_adj(result_df, xdxr, start_date)
         if adj_function is not None:
             adj_function(result_df, xdxr, start_date, end_date)
@@ -174,37 +176,40 @@ class TdxDataAgent:
         filtered_df = df[df['date'] > threshold]
         result_df = filtered_df[filtered_df['date'] <= cur_day]
         Logger.log().info(f"result_df count= {len(result_df)}")
-        Logger.log().info(f"result_df = {result_df}") 
-        return self.get_extreme_value(code, result_df, threshold, cur_day)
+        Logger.log().info(f"result_df = {result_df}")
+        agent = TdxOnlineHqAgent()
+        xdxr = agent.get_xdxr_info(code)
+        return self.get_extreme_value(code, result_df, threshold, cur_day, None, xdxr)
 
     # 是否除权除息
     # T+1买，最早T+2买
-    def get_extreme_between_days(self, code, df, current_day, target_day):
+    def get_extreme_between_days(self, code, df, current_day, target_day, xdxr):
         if df is None or df.empty:
             return None
         
         filtered_df = df[df['date'] <= target_day]
         result_df = filtered_df[filtered_df['date'] >= current_day]
 
-        return self.get_extreme_value(code, result_df, current_day, target_day, None)
+ 
+        return self.get_extreme_value(code, result_df, current_day, target_day, None, xdxr)
     
-    def get_post_extreme_between_days(self, code, df, current_day, target_day):
+    def get_post_extreme_between_days(self, code, df, current_day, target_day, xdxr):
         if df is None or df.empty:
             return None
         
         filtered_df = df[df['date'] <= target_day]
         result_df = filtered_df[filtered_df['date'] >= current_day]
 
-        return self.get_extreme_value(code, result_df, current_day, target_day, self.post_adj)
+        return self.get_extreme_value(code, result_df, current_day, target_day, self.post_adj, xdxr)
     
-    def get_pre_extreme_between_days(self, code, df, current_day, target_day):
+    def get_pre_extreme_between_days(self, code, df, current_day, target_day, xdxr):
         if df is None or df.empty:
             return None
         
         filtered_df = df[df['date'] <= target_day]
         result_df = filtered_df[filtered_df['date'] >= current_day]
 
-        return self.get_extreme_value(code, result_df, current_day, target_day, self.pre_adj)
+        return self.get_extreme_value(code, result_df, current_day, target_day, self.pre_adj, xdxr)
     
     def get_extreme_in_tradingdays(self, code, df, cur_day, days):
         if days < 0:
@@ -215,7 +220,9 @@ class TdxDataAgent:
         
         filtered_df = df[df['date'] <= cur_day]
         result_df = filtered_df.tail(days)
-        return self.get_extreme_value(code, result_df, cur_day - days, cur_day)
+        agent = TdxOnlineHqAgent()
+        xdxr = agent.get_xdxr_info(code)
+        return self.get_extreme_value(code, result_df, cur_day - days, cur_day, None, xdxr)
 
 if __name__== "__main__" :
     # print(read_kdata('000001'))
