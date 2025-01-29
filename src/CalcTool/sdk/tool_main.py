@@ -17,6 +17,12 @@ from .data_online import TdxOnlineHqAgent
 
 
 class CalcLast1YearCount:
+    
+    def __init__(self, kdata_src = 0):
+        self._kdata_src = kdata_src # 0 from online; 1 from tdx local lday
+        Logger.log().info(f"self._kdata_src = {self._kdata_src}")
+        
+
     def _FormatTime2Str(self, date_time):
         if date_time is None:
             return ""
@@ -198,7 +204,14 @@ class CalcLast1YearCount:
             count_cache[cur_row] = tick_num
             
             agent = TdxDataAgent()
-            df_kdata = agent.read_kdata(str(int(cur_tick)).zfill(6))
+            code = str(int(cur_tick)).zfill(6)
+            df_kdata = None
+            Logger.log().info(f"self._kdata_src = {self._kdata_src}")
+            if self._kdata_src == 0:
+                df_kdata = agent.read_online_kdata(code, int(t2_date), int(target_date))
+            else:
+                df_kdata = agent.read_kdata(code)
+
             Logger.log().debug(f"str(cur_tick) = {str(cur_tick)} df_kdata = {df_kdata}") 
             if not df_kdata.empty:
                 xdxr = TdxOnlineHqAgent().get_xdxr_info(str(cur_tick))
@@ -228,6 +241,9 @@ class CalcLast1YearCount:
             book.save(dst_file)
             book.close()
             Logger.log().info("save workbook完成: %s" % dst_file)
+            a = TdxOnlineHqAgent()
+            a.close_connection()
+            a = None
         
         return
 

@@ -66,6 +66,9 @@ class TdxOnlineHqAgent(Singleton):
     def __del__(self):
         self.connect.close()
 
+    def close_connection(self):
+        self.connect.close()
+
     @Dec.timeit_decorator
     def get_xdxr_info(self, code: str):
         # api = TdxHq_API(heartbeat=True, auto_retry=True)
@@ -74,10 +77,20 @@ class TdxOnlineHqAgent(Singleton):
             xdxr = self.api.get_xdxr_info(self.get_mkt_code(code), code)
             return xdxr
         except:
-            Logger.log().error("网络问题重连中")
+            Logger.log().error("get_xdxr_info 网络问题重连中")
             self.connect.close()
             self.connect = self.api.connect('121.36.81.195', 7709)
             return self.get_xdxr_info(code)
+        
+    @Dec.timeit_decorator
+    def get_kdata(self, code: str, start_date: str, end_date: str):
+        try:
+            return self.api.get_k_data(code, start_date, end_date)
+        except:
+            Logger.log().error("get_xdxr_info 网络问题重连中")
+            self.connect.close()
+            self.connect = self.api.connect('121.36.81.195', 7709)
+            return self.get_xdxr_info(code, start_date, end_date)
         
     def get_mkt_code(self, code):
         if code[0] == '6':

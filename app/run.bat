@@ -41,7 +41,7 @@ set sheet_name=条件选股2021
 echo src_file= %src_file%
 echo dst_file= %dst_file%
 echo sheet_name= %sheet_name%
-C:/Users/Administrator/AppData/Local/Programs/Python/Python313/python.exe %cur_path%app.py "%src_file%" "%dst_file%" "%sheet_name%"
+C:/Users/Administrator/AppData/Local/Programs/Python/Python313/python.exe %cur_path%app.py "%src_file%" "%dst_file%" "%sheet_name%" 0
 @REM .\app\app.exe 0 "%src_file%" "%dst_file%" "%sheet_name%
 
 move %src_file% %tmp_file%

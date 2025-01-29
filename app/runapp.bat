@@ -18,7 +18,7 @@ echo src_file= %src_file%
 echo dst_file= %dst_file%
 echo sheet_name= %sheet_name%
 @REM C:/Users/gejianquan/AppData/Local/Microsoft/WindowsApps/python3.13.exe d:/gejianquan/dev/stock1229/app/app.py "%src_file%" "%dst_file%" "%sheet_name%"
-.\app\app.exe "%src_file%" "%dst_file%" "%sheet_name%
+.\app\app.exe "%src_file%" "%dst_file%" "%sheet_name% 0
 
 pause
 

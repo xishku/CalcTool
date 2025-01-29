@@ -22,15 +22,16 @@ if __name__== "__main__" :
     src_file = sys.argv[1]
     dst_file = sys.argv[2]
     sheet_name = sys.argv[3]
+    kdata_online = sys.argv[4]
     
     print(f"Script name: {script_name}")
-    Logger.log().info(f"{src_file} {dst_file} {sheet_name}")
+    Logger.log().info(f"{src_file} {dst_file} {sheet_name} {kdata_online}")
 
     # src_file = os.path.join(os.path.dirname(
     #             os.path.realpath(__file__)), '2024条件选股x.xlsx')
     # dst_file = os.path.join(os.path.dirname(
     #         os.path.realpath(__file__)), '2024条件选股x1.xlsx')
     # Logger.log().info("开始打开文件: %s" % src_file)
-    cnt = CalcLast1YearCount()
+    cnt = CalcLast1YearCount(kdata_online)
     cnt.Count(src_file, dst_file, '条件选股2021')
     Logger.log().info("处理完成")

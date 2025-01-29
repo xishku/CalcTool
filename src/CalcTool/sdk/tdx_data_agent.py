@@ -48,6 +48,7 @@ class TdxDataAgent:
         else:
             return None
 
+    @Dec.timeit_decorator
     def read_kdata(self, qkey):
         Logger.log().debug(f"qkey = {qkey}")
         fn = self.get_tdxfn(qkey, 'd')
@@ -63,6 +64,20 @@ class TdxDataAgent:
         df['r_low'] = df['low'] / 100
         df['r_close'] = df['close'] / 100
     
+        return df
+    
+    @Dec.timeit_decorator
+    def read_online_kdata(self, code, start_date: str, end_date: str):
+        df = TdxOnlineHqAgent().get_kdata(code, start_date, end_date)
+        if df is None: 
+            return pd.DataFrame()
+        
+        df['preclose'] = df['close'].shift()
+        df['r_open'] = df['open']
+        df['r_high'] = df['high']
+        df['r_low'] = df['low']
+        df['r_close'] = df['close']
+
         return df
     
     def value_post_adj(self, src_value, fenhong, songzhuanggu):
@@ -176,7 +191,7 @@ class TdxDataAgent:
         filtered_df = df[df['date'] > threshold]
         result_df = filtered_df[filtered_df['date'] <= cur_day]
         Logger.log().info(f"result_df count= {len(result_df)}")
-        Logger.log().info(f"result_df = {result_df}")
+        # Logger.log().info(f"result_df = {result_df}")
         agent = TdxOnlineHqAgent()
         xdxr = agent.get_xdxr_info(code)
         return self.get_extreme_value(code, result_df, threshold, cur_day, None, xdxr)

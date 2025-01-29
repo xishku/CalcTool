@@ -21,7 +21,12 @@ class TestTdxDataAgentFun(unittest.TestCase):
         agent2 = TdxOnlineHqAgent()
         Logger.log().info(f"id(agent2) = {id(agent2)} id(agent1) = {id(agent1)}")
         self.assertEqual(True, agent1 is agent2)
-        return
+
+        df = agent1.get_kdata('601398','2025-01-06','2025-01-08')
+        # Logger.log().info(f"{df}")
+        self.assertEqual(6.75, df.loc['2025-01-06', 'close'])
+        self.assertEqual(6.69, df.loc['2025-01-07', 'close'])
+        self.assertEqual(6.76, df.loc['2025-01-08', 'close'])
     
         df = agent.read_kdata('601816')
         # print(df)
