@@ -100,11 +100,27 @@ class CalcLast1YearCount:
             sheet['AB' + row] = value[2][2]
             sheet['AC' + row] = self.FormatDate(int(value[2][3]))
 
+    @staticmethod
+    def can_convert_to_int(s):
+        try:
+            int(s)
+            return True
+        except ValueError:
+            return False
 
     def Count(self, src_file, dst_file, sheet_name):
+        from pathlib import Path
+ 
+        file_path = Path(src_file)
+        if not (file_path.exists() and file_path.is_file()):
+            err = f"文件不存在{src_file}"
+            raise Exception(err)
+
         # 读取Excel文件
         Logger.log().info("打开文件: %s" % src_file)
-        df = pd.read_excel(src_file, sheet_name=sheet_name)
+
+        df = pd.read_excel(src_file, sheet_name=sheet_name, dtype=({"代码": str}))
+        Logger.log().info(f"{df.dtypes}")
         Logger.log().info("打开文件完成: %s" % src_file)
 
         count_cache = dict()
@@ -113,20 +129,27 @@ class CalcLast1YearCount:
 
         data_cache = dict()
         for cur_row in range(len(df) - 1, -1, -1):
-            cur_tick = df.at[cur_row, "代码"]
-            if not self._IsTickRight(cur_tick, cur_row):
+            src_tick = df.at[cur_row, "代码"]
+            if not CalcLast1YearCount.can_convert_to_int(src_tick):
                 continue
+
+            cur_tick = int(src_tick)
+            Logger.log().debug(f"src_tick = {src_tick} type(src_tick) = {type(src_tick)} type(cur_tick) = {type(cur_tick)}")
+            
+            # if not self._IsTickRight(cur_tick, cur_row):
+            #     continue
 
             date_str = self._FormatDate2Str(df.at[cur_row , "日期"])
             if date_str not in data_cache:
                 data_cache[date_str] = set()
 
-            data_cache[date_str].add(df.at[cur_row, "代码"])
+            data_cache[date_str].add(cur_tick)
 
             Logger.log().debug(f'Key: {date_str}, Value: {cur_tick}')
             if cur_tick == "300960":
                 Logger.log().info(f'Key: {date_str}, Value: {cur_tick}')
     
+        
         Logger.log().info(f"len(data_cache) = {len(data_cache)}")
         for key, value in data_cache.items():
             for tick in value:
@@ -138,10 +161,14 @@ class CalcLast1YearCount:
         
         for cur_row in range(len(df) - 1, -1, -1):
         # for cur_row in (17488, 0):
-            cur_tick = df.at[cur_row, "代码"]
-            Logger.log().info(f"{cur_row} {cur_tick}")
-            if not self._IsTickRight(cur_tick, cur_row):
+            src_tick = df.at[cur_row, "代码"]
+            if not CalcLast1YearCount.can_convert_to_int(src_tick):
                 continue
+
+            cur_tick = int(src_tick)
+            Logger.log().info(f"{cur_row} {cur_tick}")
+            # if not self._IsTickRight(cur_tick, cur_row):
+            #     continue
 
             cur_count = df.at[cur_row, "最近一年出现次数"]
             if cur_count > 0:
@@ -178,7 +205,7 @@ class CalcLast1YearCount:
                 post = agent.get_post_extreme_between_days(str(cur_tick), df_kdata, int(t2_date), int(target_date))
                 extreme_cache[cur_row] = (origin, pre, post)
 
-            data_cache[date_str].add(df.at[cur_row, "代码"])
+            data_cache[date_str].add(cur_tick)
 
         # 保存并关闭Excel文件
         Logger.log().debug(f"count_cache = {count_cache} extreme_cache = {extreme_cache}")
@@ -191,11 +218,13 @@ class CalcLast1YearCount:
         try:
             self.WriteCount2Sheet(count_cache, sheet)
             self.WriteExtreme2Sheet(extreme_cache, sheet)
+            sheet['A1'] = "代码"
 
         finally:
             # 保存并关闭Excel文件
             Logger.log().info("save workbook: %s" % dst_file)
             book.save(dst_file)
+            book.close()
             Logger.log().info("save workbook完成: %s" % dst_file)
         
         return
@@ -208,7 +237,11 @@ class CalcLast1YearCount:
             # if sheet[cell_coordinate].value is not None:
             #     continue
 
-            cur_tick = df.at[cur_row, "代码"]
+            src_tick = df.at[cur_row, "代码"]
+            if not CalcLast1YearCount.can_convert_to_int(src_tick):
+                continue
+
+            cur_tick = int(src_tick)
             if not self._IsTickRight(cur_tick, cur_row):
                 continue
 
