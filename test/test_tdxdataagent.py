@@ -12,9 +12,17 @@ from CalcTool.sdk.data_online import TdxOnlineHqAgent
 
 import unittest
 
+
+
 class TestTdxDataAgentFun(unittest.TestCase):
     def test_add(self):
         agent = TdxDataAgent()
+        agent1 = TdxOnlineHqAgent()
+        agent2 = TdxOnlineHqAgent()
+        Logger.log().info(f"id(agent2) = {id(agent2)} id(agent1) = {id(agent1)}")
+        self.assertEqual(True, agent1 is agent2)
+        return
+    
         df = agent.read_kdata('601816')
         # print(df)
         t = agent.get_extreme_in_days('601816', df, 20240210, 20)

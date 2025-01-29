@@ -46,16 +46,37 @@ def main():    # 自动获取最快的通达信服务器地址和端口
     api.disconnect()    
     print("已断开与通达信服务器的连接")
 
-class TdxOnlineHqAgent:
+class SingletonMeta(type):
+    _instances = {}
+ 
+    def __call__(cls, *args, **kwargs):
+        if cls not in cls._instances:
+            cls._instances[cls] = super(SingletonMeta, cls).__call__(*args, **kwargs)
+        return cls._instances[cls]
+
+class Singleton(metaclass=SingletonMeta):
+    pass
+
+class TdxOnlineHqAgent(Singleton):
+    def __init__(self):
+        self.api = TdxHq_API(heartbeat=True, auto_retry=True)
+        self.connect = self.api.connect('121.36.81.195', 7709)
+        Logger.log().info(f"TdxOnlineHqAgent.__init__ self = {id(self)}")
+
+    def __del__(self):
+        self.connect.close()
+
     @Dec.timeit_decorator
     def get_xdxr_info(self, code: str):
-        api = TdxHq_API(heartbeat=True, auto_retry=True)
+        # api = TdxHq_API(heartbeat=True, auto_retry=True)
         try:
-            with api.connect('121.36.81.195', 7709):
-                xdxr = api.get_xdxr_info(self.get_mkt_code(code), code)
-                return xdxr
+            # with api.connect('121.36.81.195', 7709):
+            xdxr = self.api.get_xdxr_info(self.get_mkt_code(code), code)
+            return xdxr
         except:
             Logger.log().error("网络问题重连中")
+            self.connect.close()
+            self.connect = self.api.connect('121.36.81.195', 7709)
             return self.get_xdxr_info(code)
         
     def get_mkt_code(self, code):
