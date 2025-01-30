@@ -201,7 +201,7 @@ class CalcLast1YearCount:
                 post = agent.get_post_extreme_between_days(str(cur_tick), df_kdata, int(t2_date), int(target_date), xdxr)
                 extreme_cache[cur_row] = (origin, pre, post)
 
-    def Count(self, src_file, dst_file, sheet_name):
+    def count(self, src_file, dst_file, sheet_name):
         from pathlib import Path
  
         file_path = Path(src_file)
@@ -265,5 +265,5 @@ if __name__== "__main__" :
             os.path.realpath(__file__)), '2024条件选股x1.xlsx')
     Logger.log().info("开始打开文件: %s" % src_file)
     cnt = CalcLast1YearCount()
-    cnt.Count(src_file, dst_file, '条件选股2021')
+    cnt.count(src_file, dst_file, '条件选股2021')
     Logger.log().info("处理完成")

@@ -9,7 +9,7 @@ from openpyxl.comments import Comment
 
 
 class CalcLast1YearCount:
-    def Count(self):
+    def count(self):
         # 读取Excel文件
         df = pd.read_excel('date.xlsx', sheet_name='Sheet1')
         book = openpyxl.load_workbook('date.xlsx')
@@ -49,4 +49,4 @@ class CalcLast1YearCount:
 
 if __name__== "__main__" :
     cnt = CalcLast1YearCount()
-    cnt.Count()
+    cnt.count()

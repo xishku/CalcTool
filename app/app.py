@@ -33,5 +33,5 @@ if __name__== "__main__" :
     #         os.path.realpath(__file__)), '2024条件选股x1.xlsx')
     # Logger.log().info("开始打开文件: %s" % src_file)
     cnt = CalcLast1YearCount(kdata_online)
-    cnt.Count(src_file, dst_file, '条件选股2021')
+    cnt.count(src_file, dst_file, '条件选股2021')
     Logger.log().info("处理完成")
