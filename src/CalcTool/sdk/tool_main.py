@@ -108,6 +108,11 @@ class CalcLast1YearCount:
             sheet['AB' + row] = value[2][2]
             sheet['AC' + row] = self.FormatDate(int(value[2][3]))
 
+            sheet['AL' + row] = value[3][0]
+            sheet['AM' + row] = value[3][0] / value[0][4]
+            sheet['AO' + row] = value[3][1]
+            sheet['AP' + row] = value[3][1] / value[0][4]
+
     @staticmethod
     def can_convert_to_int(s):
         try:
@@ -198,7 +203,13 @@ class CalcLast1YearCount:
                 origin = agent.get_extreme_between_days(str(cur_tick), df_kdata, int(t2_date), int(target_date), xdxr)
                 pre = agent.get_pre_extreme_between_days(str(cur_tick), df_kdata, int(t2_date), int(target_date), xdxr)
                 post = agent.get_post_extreme_between_days(str(cur_tick), df_kdata, int(t2_date), int(target_date), xdxr)
-                extreme_cache[cur_row] = (origin, pre, post)
+
+                base_price = df.at[cur_row, "收盘价"]
+                tp_price = base_price * (1 + df.at[cur_row, "止盈线"])
+                sl_price = base_price * (1 + df.at[cur_row, "止损线"])
+                tpsl = agent.get_post_takeprofit_stoploss_between_days(df_kdata, int(t2_date), int(target_date), xdxr, tp_price, sl_price)
+                extreme_cache[cur_row] = (origin, pre, post, tpsl)
+                
 
             cur_tick
             hot_cache[cur_row] = 0

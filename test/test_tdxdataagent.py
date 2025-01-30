@@ -9,6 +9,7 @@ sys.path.append(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../sr
 from CalcTool.sdk.tdx_data_agent import TdxDataAgent
 from CalcTool.sdk.logger import Logger
 from CalcTool.sdk.data_online import TdxOnlineHqAgent
+from pytdx.hq import TdxHq_API 
 
 import unittest
 
@@ -58,13 +59,26 @@ if __name__ == '__main__':
     # for cur_row in range(0, len(df)):
     #     Logger.log().info(f"{df['date'][cur_row]} {df['r_high'][cur_row]} {df['close'][cur_row]}")
     # agent.get_extreme_in_days(df, 20250106, 20)
-    unittest.main()
+    # unittest.main()
 
     # from pytdx.hq import TdxHq_API
     # import csv
 
-    # api = TdxHq_API(heartbeat=True, auto_retry=True)
-    # with api.connect('121.36.81.195', 7709):
+    api = TdxHq_API(heartbeat=True, auto_retry=True)
+    with api.connect('121.36.81.195', 7709):
+        date_str = '2024-12-27'
+        end_date_str = '2025-01-27'
+        df = api.get_k_data('301439', date_str, end_date_str)
+        base = 14.31
+        tp = base * (1 + 0.15)
+        sl = base * (1 - 0.08)
+        print(tp, sl)
+
+        tp_df = df[df["close"] >= tp]
+        print(f"len(tp_df) = {len(tp_df)}")
+        sl_df = df[df["close"] <= sl]
+        print(f"len(sl_df) = {len(sl_df)} {sl_df}")        
+        # print(df.at[date_str, "close"])
     #     print("OK")
     #     # data = api.get_security_bars(9, 0, '000001', 0, 10) #返回普通list
     #     # print(data)

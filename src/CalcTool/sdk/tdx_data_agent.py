@@ -186,6 +186,34 @@ class TdxDataAgent:
         lowest_date = row_with_low["r_date"]
         Logger.log().debug(f"lowest = {lowest} lowest_date = {lowest_date}") 
         return (highest, highest_date, lowest, lowest_date, len(result_df))
+    
+    @Dec.timeit_decorator
+    def get_takeprofit_stoploss_value(self, result_df, start_date, end_date, adj_function, xdxr, tp_price, sl_price):
+        if result_df.shape[0] == 0:
+            return None
+        
+        # agent = TdxOnlineHqAgent()
+        # xdxr = agent.get_xdxr_info(code)
+        # self.post_adj(result_df, xdxr, start_date)
+        if adj_function is not None:
+            adj_function(result_df, xdxr, start_date, end_date)
+        
+        # # 找出列'A'中最大值所在的行的索引
+        # max_index = result_df['r_high'].idxmax()
+        # # 使用loc方法根据索引获取包含最大值的整行数据
+        # row_with_max = result_df.loc[max_index]
+        # highest =  row_with_max["r_high"]
+        # highest_date =  row_with_max["r_date"]
+        # Logger.log().debug(f"highest = {highest} highest_date = {highest_date}") 
+
+        # low_index = result_df['r_low'].idxmin()
+        # row_with_low = result_df.loc[low_index]
+        # lowest = row_with_low['r_low']
+        # lowest_date = row_with_low["r_date"]
+        # Logger.log().debug(f"lowest = {lowest} lowest_date = {lowest_date}")
+        tp_df = result_df[result_df["r_close"] >= tp_price]
+        sl_df = result_df[result_df["r_close"] <= sl_price]
+        return (len(tp_df), len(sl_df))
 
     def get_extreme_in_days(self, code, df, cur_day, days):
         dt_from_str = datetime.datetime.strptime(str(cur_day), "%Y%m%d")
@@ -226,6 +254,15 @@ class TdxDataAgent:
 
         return self.get_extreme_value(code, result_df, current_day, target_day, self.post_adj, xdxr)
     
+    def get_post_takeprofit_stoploss_between_days(self, df, current_day, target_day, xdxr, tp_price, sl_price):
+        if df is None or df.empty:
+            return None
+        
+        filtered_df = df[df['r_date'] <= target_day]
+        result_df = filtered_df[filtered_df['r_date'] >= current_day]
+
+        return self.get_takeprofit_stoploss_value(result_df, current_day, target_day, self.post_adj, xdxr, tp_price, sl_price)
+
     def get_pre_extreme_between_days(self, code, df, current_day, target_day, xdxr):
         if df is None or df.empty:
             return None
