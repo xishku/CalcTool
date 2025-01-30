@@ -49,7 +49,7 @@ class TdxDataAgent:
             return None
 
     @Dec.timeit_decorator
-    def read_kdata(self, qkey):
+    def read_kdata_cache(self, qkey):
         Logger.log().debug(f"qkey = {qkey}")
         fn = self.get_tdxfn(qkey, 'd')
         if not fn: 

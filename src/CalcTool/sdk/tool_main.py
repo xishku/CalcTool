@@ -19,7 +19,7 @@ from .data_online import TdxOnlineHqAgent
 class CalcLast1YearCount:
     
     def __init__(self, kdata_src = 0):
-        self._kdata_src = kdata_src # 0 from online; 1 from tdx local lday
+        self._kdata_src = int(kdata_src) # 0 from online; 1 from tdx local lday
         Logger.log().info(f"self._kdata_src = {self._kdata_src}")
         
 
@@ -197,20 +197,31 @@ class CalcLast1YearCount:
                     else:
                         Logger.log().debug("tick不存在")
         
-            cur_date = self._FormatDate2Str(df.at[cur_row, "日期"])
-            target_date = self._FormatDate2Str(df.at[cur_row, "目标日期"])
-            t2_date = self._FormatDate2Str(df.at[cur_row, "日期"]  + datetime.timedelta(days=2))
+            date_cur = df.at[cur_row, "日期"]
+            date_target = df.at[cur_row, "目标日期"]
+            date_t2 = date_cur + datetime.timedelta(days=2)
+            cur_date = self._FormatDate2Str(date_cur)
+            target_date = self._FormatDate2Str(date_target)
+            t2_date = self._FormatDate2Str(date_t2)
             Logger.log().info(f"cur_row = {cur_row}, cur_date = {cur_date}，target_date= {target_date}, 当前tick = {cur_tick}, 最终tick_num = {tick_num}")
             count_cache[cur_row] = tick_num
             
             agent = TdxDataAgent()
             code = str(int(cur_tick)).zfill(6)
             df_kdata = None
-            Logger.log().info(f"self._kdata_src = {self._kdata_src}")
+            Logger.log().info(f"self._kdata_src = {self._kdata_src} type(self._kdata_src) = {type(self._kdata_src)}")
             if self._kdata_src == 0:
-                df_kdata = agent.read_online_kdata(code, int(t2_date), int(target_date))
+                Logger.log().info("正确分支")
+                t2_str = date_t2.strftime("%Y-%m-%d")
+                target_str = date_target.strftime("%Y-%m-%d")
+                Logger.log().info(f"code = {code} t2_str = {t2_str} target_str = {target_str}")
+                df_kdata = agent.read_online_kdata(code, t2_str, target_str)
             else:
-                df_kdata = agent.read_kdata(code)
+                Logger.log().info("错误分支")
+                df_kdata = agent.read_kdata_cache(code)
+            
+            if df_kdata is None or len(df_kdata) == 0:
+                Logger.log().error(f"没有正确获取到df_kdata")
 
             Logger.log().debug(f"str(cur_tick) = {str(cur_tick)} df_kdata = {df_kdata}") 
             if not df_kdata.empty:
