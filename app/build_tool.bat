@@ -6,7 +6,7 @@ xcopy ..\src . /E /Y
 
 pyinstaller app.spec
 
-copy .\runapp.bat .\dist /Y
+copy .\runapp*.bat .\dist /Y
 copy .\*.md .\dist /Y
 
 del .\CalcTool /q /f /s
@@ -21,7 +21,8 @@ move .\dist\*.exe .\dist\app
 
 del .\CalcTool_%version_no% /q /f /s
 rmdir .\CalcTool_%version_no% /q /s
-move .\dist .\CalcTool_%version_no%
+@REM move .\dist .\CalcTool_%version_no%
+xcopy .\dist\* .\CalcTool_%version_no%\ /E /Y
 
 tar -zcvf CalcTool_%version_no%.tar.gz .\CalcTool_%version_no%
 
