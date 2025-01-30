@@ -209,15 +209,13 @@ class CalcLast1YearCount:
             agent = TdxDataAgent()
             code = str(int(cur_tick)).zfill(6)
             df_kdata = None
-            Logger.log().info(f"self._kdata_src = {self._kdata_src} type(self._kdata_src) = {type(self._kdata_src)}")
+            Logger.log().debug(f"self._kdata_src = {self._kdata_src} type(self._kdata_src) = {type(self._kdata_src)}")
             if self._kdata_src == 0:
-                Logger.log().info("正确分支")
                 t2_str = date_t2.strftime("%Y-%m-%d")
                 target_str = date_target.strftime("%Y-%m-%d")
-                Logger.log().info(f"code = {code} t2_str = {t2_str} target_str = {target_str}")
+                Logger.log().debug(f"code = {code} t2_str = {t2_str} target_str = {target_str}")
                 df_kdata = agent.read_online_kdata(code, t2_str, target_str)
             else:
-                Logger.log().info("错误分支")
                 df_kdata = agent.read_kdata_cache(code)
             
             if df_kdata is None or len(df_kdata) == 0:
