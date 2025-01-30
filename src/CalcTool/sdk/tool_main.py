@@ -65,7 +65,7 @@ class CalcLast1YearCount:
             log_txt = f"Key: {cell_coordinate}, oldValue: {sheet[cell_coordinate].value}, Value: {value}"
             Logger.log().info(log_txt)
             sheet[cell_coordinate] = value # 将A1单元格的值修改为10
-            comment = Comment(f"{self._FormatDate2Str(datetime.datetime.now())}, {log_txt}", author='pytool')
+            comment = Comment(f"{self._FormatTime2Str(datetime.datetime.now())}, {log_txt}", author='pytool')
             sheet[cell_coordinate].comment = comment
 
     def FormatDate(self, date_num):
@@ -73,6 +73,7 @@ class CalcLast1YearCount:
 
 
     def WriteExtreme2Sheet(self, extreme: dict, sheet):
+        Logger.log().info(f"len(extreme) = {len(extreme)}")
         if len(extreme) == 0:
             Logger.log().info("从下往上更新，遇到大于0的结束，没有需要更新的数据")
             return
@@ -89,7 +90,7 @@ class CalcLast1YearCount:
             if value[2] is None:
                 Logger.log().warning("获取后复权数据失败")
                 break
-
+            
             row = str(key + 2)
             sheet['Q' + row] = value[0][0]
             sheet['R' + row] = self.FormatDate(int(value[0][1]))
@@ -137,7 +138,7 @@ class CalcLast1YearCount:
             if cur_tick == "300960":
                 Logger.log().info(f'Key: {date_str}, Value: {cur_tick}')
 
-    def prepare_data(self, df, data_cache, count_cache, extreme_cache):
+    def prepare_data(self, df, hot_set_list, data_cache, count_cache, extreme_cache, hot_cache):
         for cur_row in range(len(df) - 1, -1, -1):
         # for cur_row in (17488, 0):
             src_tick = df.at[cur_row, "代码"]
@@ -145,15 +146,13 @@ class CalcLast1YearCount:
                 continue
 
             cur_tick = int(src_tick)
-            Logger.log().info(f"{cur_row} {cur_tick}")
+            # Logger.log().info(f"{cur_row} {cur_tick}")
             # if not self._IsTickRight(cur_tick, cur_row):
             #     continue
 
             cur_count = df.at[cur_row, "最近一年出现次数"]
             if cur_count > 0:
                 break
-
-            
 
             # cell_coordinate = 'R' + str(cur_row + 2)
 
@@ -201,6 +200,51 @@ class CalcLast1YearCount:
                 post = agent.get_post_extreme_between_days(str(cur_tick), df_kdata, int(t2_date), int(target_date), xdxr)
                 extreme_cache[cur_row] = (origin, pre, post)
 
+            cur_tick
+            hot_cache[cur_row] = 0
+            for index, element in enumerate(hot_set_list):
+                # Logger.log().info(f"index = {index} type(element) = {type(element)}")
+                if int(cur_tick) in element:
+                    hot_cache[cur_row] |= (1 << index)
+
+    def write_hotmap_2_sheet(self, hot_map_df, hot_cache, sheet):
+        if len(hot_cache) == 0:
+            Logger.log().info("从下往上更新，遇到大于0的结束，没有需要更新的数据")
+            return
+        
+        hot_map = dict()
+        for cur_row in range(len(hot_map_df)):
+            hot_name = hot_map_df.at[cur_row, "热点"]
+            sheet_name = hot_map_df.at[cur_row, "sheet名称"]
+            hot_map[cur_row] = hot_name
+            Logger.log().info(f"cur_row = {cur_row} hot_name = {hot_name} sheet_name = {sheet_name}")
+
+        for key, value in hot_cache.items():
+            label = ""
+            for bit_index in range(5):
+                if (1 << bit_index) & value == (1 << bit_index):
+                    label += hot_map[bit_index] + ";"
+            
+            if label == "":
+                continue
+
+            row = str(key + 2)
+            sheet['AE' + row] = label
+            Logger.log().info(f"write to {'AE' + row} : {label}")
+     
+
+    def prepare_hot_set(self, hot_df):
+        hot_set = set()
+        for cur_row in range(len(hot_df) - 1, -1, -1): 
+            src_tick = hot_df.at[cur_row, "代码"]
+            if not CalcLast1YearCount.can_convert_to_int(src_tick):
+                continue
+            
+            hot_set.add(int(src_tick))
+            # Logger.log().info(f"add to hot set: {src_tick} then len(hot_set) = {len(hot_set)}")
+
+        return hot_set
+
     def count(self, src_file, dst_file, sheet_name):
         from pathlib import Path
  
@@ -213,11 +257,40 @@ class CalcLast1YearCount:
         Logger.log().info("打开文件: %s" % src_file)
 
         df = pd.read_excel(src_file, sheet_name=sheet_name, dtype=({"代码": str}))
-        Logger.log().info(f"{df.dtypes}")
+        hot_map_df = pd.read_excel(src_file, sheet_name="概念映射", dtype=({"代码": str}))
+
+        hot_map = dict()
+        hot_set_list = []
+        for cur_row in range(len(hot_map_df)):
+            hot_sheet_name = hot_map_df.at[cur_row, "sheet名称"]
+            hot_map[cur_row] = hot_sheet_name
+            Logger.log().info(f"cur_row = {cur_row} hot_sheet_name = {hot_sheet_name}")
+
+            hot_df = pd.read_excel(src_file, sheet_name=hot_sheet_name, dtype=({"代码": str}))
+            hot_set = self.prepare_hot_set(hot_df)
+            hot_set_list.append(hot_set)
+            Logger.log().info(f"len(hot_set) = {len(hot_set)} len(hot_set_list) = {len(hot_set_list)}")
+
+        # blackhorse_df = pd.read_excel(src_file, sheet_name="黑马", dtype=({"代码": str}))
+        # hot1_df = pd.read_excel(src_file, sheet_name="概念1", dtype=({"代码": str}))
+        # hot2_df = pd.read_excel(src_file, sheet_name="概念2", dtype=({"代码": str}))
+        # hot3_df = pd.read_excel(src_file, sheet_name="概念3", dtype=({"代码": str}))
+        # hot4_df = pd.read_excel(src_file, sheet_name="概念4", dtype=({"代码": str}))
+
+        # balckhorse_set = self.prepare_hot_set(blackhorse_df)
+        # hot1_set = self.prepare_hot_set(hot1_df)
+        # hot2_set = self.prepare_hot_set(hot2_df)
+        # hot3_set = self.prepare_hot_set(hot3_df)
+        # hot4_set = self.prepare_hot_set(hot4_df)
+
+        # hot_set_tuple = (balckhorse_set, hot1_set, hot2_set, hot3_set, hot4_set)
+
+        # Logger.log().info(f"{hot_map_df} {hot1_df} {hot2_df} {hot2_df} {hot3_df}")
         Logger.log().info("打开文件完成: %s" % src_file)
 
         count_cache = dict()
         extreme_cache = dict()
+        hot_cache = dict()
         print("总行数len(df) = ", len(df))
 
         data_cache = dict()
@@ -232,7 +305,7 @@ class CalcLast1YearCount:
                     Logger.log().info(f'Key: {key}, Value: {tick}')
     
         
-        self.prepare_data(df, data_cache, count_cache, extreme_cache)
+        self.prepare_data(df, hot_set_list, data_cache, count_cache, extreme_cache, hot_cache)
 
         # 保存并关闭Excel文件
         Logger.log().debug(f"count_cache = {count_cache} extreme_cache = {extreme_cache}")
@@ -245,7 +318,7 @@ class CalcLast1YearCount:
         try:
             self.WriteCount2Sheet(count_cache, sheet)
             self.WriteExtreme2Sheet(extreme_cache, sheet)
-            sheet['A1'] = "代码"
+            self.write_hotmap_2_sheet(hot_map_df, hot_cache, sheet)
 
         finally:
             # 保存并关闭Excel文件
