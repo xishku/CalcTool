@@ -63,6 +63,7 @@ class TdxDataAgent:
         df['r_high'] = df['high'] / 100
         df['r_low'] = df['low'] / 100
         df['r_close'] = df['close'] / 100
+        df['r_date'] = df['date']
     
         return df
     
@@ -72,11 +73,19 @@ class TdxDataAgent:
         if df is None: 
             return pd.DataFrame()
         
+        date_format = "%Y-%m-%d"
+
         df['preclose'] = df['close'].shift()
         df['r_open'] = df['open']
         df['r_high'] = df['high']
         df['r_low'] = df['low']
         df['r_close'] = df['close']
+        df['r_date'] = 0
+
+        for index, item in df.iterrows():
+            # Logger.log().info(type(item['date']))
+            df.loc[index, "r_date"] = int(datetime.datetime.strptime(item['date'], "%Y-%m-%d").strftime("%Y%m%d"))
+        
 
         return df
     
@@ -108,7 +117,7 @@ class TdxDataAgent:
 
             for index, item in data_df.iterrows():
                 # 前复权仅仅处理除权当天及以后的，包括当天，因为当天已经除权
-                if item["date"] < date_num:
+                if item["r_date"] < date_num:
                     continue
 
                 data_df.loc[index, 'r_high']= self.value_post_adj(item['r_high'], fenhong, songzhuanggu)
@@ -144,7 +153,7 @@ class TdxDataAgent:
 
             for index, item in data_df.iterrows():
                 # 前复权仅仅处理除权当天以前的，不包括当天
-                if item["date"] >= date_num:
+                if item["r_date"] >= date_num:
                     continue
 
                 data_df.loc[index, 'r_high']= self.value_pre_adj(item['r_high'], fenhong, songzhuanggu)
@@ -168,13 +177,13 @@ class TdxDataAgent:
         # 使用loc方法根据索引获取包含最大值的整行数据
         row_with_max = result_df.loc[max_index]
         highest =  row_with_max["r_high"]
-        highest_date =  row_with_max["date"]
+        highest_date =  row_with_max["r_date"]
         Logger.log().debug(f"highest = {highest} highest_date = {highest_date}") 
 
         low_index = result_df['r_low'].idxmin()
         row_with_low = result_df.loc[low_index]
         lowest = row_with_low['r_low']
-        lowest_date = row_with_low["date"]
+        lowest_date = row_with_low["r_date"]
         Logger.log().debug(f"lowest = {lowest} lowest_date = {lowest_date}") 
         return (highest, highest_date, lowest, lowest_date, len(result_df))
 
@@ -188,8 +197,8 @@ class TdxDataAgent:
         threshold = int(target_day_str)
  
         Logger.log().info(f"threshold = {threshold}")
-        filtered_df = df[df['date'] > threshold]
-        result_df = filtered_df[filtered_df['date'] <= cur_day]
+        filtered_df = df[df['r_date'] > threshold]
+        result_df = filtered_df[filtered_df['r_date'] <= cur_day]
         Logger.log().info(f"result_df count= {len(result_df)}")
         # Logger.log().info(f"result_df = {result_df}")
         agent = TdxOnlineHqAgent()
@@ -202,8 +211,8 @@ class TdxDataAgent:
         if df is None or df.empty:
             return None
         
-        filtered_df = df[df['date'] <= target_day]
-        result_df = filtered_df[filtered_df['date'] >= current_day]
+        filtered_df = df[df['r_date'] <= target_day]
+        result_df = filtered_df[filtered_df['r_date'] >= current_day]
 
  
         return self.get_extreme_value(code, result_df, current_day, target_day, None, xdxr)
@@ -212,8 +221,8 @@ class TdxDataAgent:
         if df is None or df.empty:
             return None
         
-        filtered_df = df[df['date'] <= target_day]
-        result_df = filtered_df[filtered_df['date'] >= current_day]
+        filtered_df = df[df['r_date'] <= target_day]
+        result_df = filtered_df[filtered_df['r_date'] >= current_day]
 
         return self.get_extreme_value(code, result_df, current_day, target_day, self.post_adj, xdxr)
     
@@ -221,8 +230,8 @@ class TdxDataAgent:
         if df is None or df.empty:
             return None
         
-        filtered_df = df[df['date'] <= target_day]
-        result_df = filtered_df[filtered_df['date'] >= current_day]
+        filtered_df = df[df['r_date'] <= target_day]
+        result_df = filtered_df[filtered_df['r_date'] >= current_day]
 
         return self.get_extreme_value(code, result_df, current_day, target_day, self.pre_adj, xdxr)
     
@@ -233,7 +242,7 @@ class TdxDataAgent:
         if df is None or df.empty:
             return None
         
-        filtered_df = df[df['date'] <= cur_day]
+        filtered_df = df[df['r_date'] <= cur_day]
         result_df = filtered_df.tail(days)
         agent = TdxOnlineHqAgent()
         xdxr = agent.get_xdxr_info(code)
