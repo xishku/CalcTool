@@ -115,26 +115,7 @@ class CalcLast1YearCount:
         except ValueError:
             return False
 
-    def Count(self, src_file, dst_file, sheet_name):
-        from pathlib import Path
- 
-        file_path = Path(src_file)
-        if not (file_path.exists() and file_path.is_file()):
-            err = f"文件不存在{src_file}"
-            raise Exception(err)
-
-        # 读取Excel文件
-        Logger.log().info("打开文件: %s" % src_file)
-
-        df = pd.read_excel(src_file, sheet_name=sheet_name, dtype=({"代码": str}))
-        Logger.log().info(f"{df.dtypes}")
-        Logger.log().info("打开文件完成: %s" % src_file)
-
-        count_cache = dict()
-        extreme_cache = dict()
-        print("总行数len(df) = ", len(df))
-
-        data_cache = dict()
+    def read_data_2_cache(self, df, data_cache):
         for cur_row in range(len(df) - 1, -1, -1):
             src_tick = df.at[cur_row, "代码"]
             if not CalcLast1YearCount.can_convert_to_int(src_tick):
@@ -155,17 +136,8 @@ class CalcLast1YearCount:
             Logger.log().debug(f'Key: {date_str}, Value: {cur_tick}')
             if cur_tick == "300960":
                 Logger.log().info(f'Key: {date_str}, Value: {cur_tick}')
-    
-        
-        Logger.log().info(f"len(data_cache) = {len(data_cache)}")
-        for key, value in data_cache.items():
-            for tick in value:
-                Logger.log().debug(f'Key: {key}, Value: {tick}')
-                            
-                if tick == "300960":
-                    Logger.log().info(f'Key: {key}, Value: {tick}')
-    
-        
+
+    def prepare_data(self, df, data_cache, count_cache, extreme_cache):
         for cur_row in range(len(df) - 1, -1, -1):
         # for cur_row in (17488, 0):
             src_tick = df.at[cur_row, "代码"]
@@ -229,7 +201,38 @@ class CalcLast1YearCount:
                 post = agent.get_post_extreme_between_days(str(cur_tick), df_kdata, int(t2_date), int(target_date), xdxr)
                 extreme_cache[cur_row] = (origin, pre, post)
 
-            data_cache[date_str].add(cur_tick)
+    def Count(self, src_file, dst_file, sheet_name):
+        from pathlib import Path
+ 
+        file_path = Path(src_file)
+        if not (file_path.exists() and file_path.is_file()):
+            err = f"文件不存在{src_file}"
+            raise Exception(err)
+
+        # 读取Excel文件
+        Logger.log().info("打开文件: %s" % src_file)
+
+        df = pd.read_excel(src_file, sheet_name=sheet_name, dtype=({"代码": str}))
+        Logger.log().info(f"{df.dtypes}")
+        Logger.log().info("打开文件完成: %s" % src_file)
+
+        count_cache = dict()
+        extreme_cache = dict()
+        print("总行数len(df) = ", len(df))
+
+        data_cache = dict()
+        self.read_data_2_cache(df, data_cache)
+        
+        Logger.log().info(f"len(data_cache) = {len(data_cache)}")
+        for key, value in data_cache.items():
+            for tick in value:
+                Logger.log().debug(f'Key: {key}, Value: {tick}')
+                            
+                if tick == "300960":
+                    Logger.log().info(f'Key: {key}, Value: {tick}')
+    
+        
+        self.prepare_data(df, data_cache, count_cache, extreme_cache)
 
         # 保存并关闭Excel文件
         Logger.log().debug(f"count_cache = {count_cache} extreme_cache = {extreme_cache}")
@@ -253,60 +256,7 @@ class CalcLast1YearCount:
             a = TdxOnlineHqAgent()
             a.close_connection()
             a = None
-        
-        return
 
-
-        for cur_row in range(len(df) - 1, -1, -1):
-        # for cur_row in range(0, 1000):
-            cell_coordinate = 'R' + str(cur_row + 2)
-            # print("sheet[cell_coordinate].value: ", cell_coordinate, sheet[cell_coordinate].value)
-            # if sheet[cell_coordinate].value is not None:
-            #     continue
-
-            src_tick = df.at[cur_row, "代码"]
-            if not CalcLast1YearCount.can_convert_to_int(src_tick):
-                continue
-
-            cur_tick = int(src_tick)
-            if not self._IsTickRight(cur_tick, cur_row):
-                continue
-
-            cur_count = df.at[cur_row, "最近一年出现次数"]
-
-            tick_num = 0
-            Logger.log().info(f"当前cur_row = {cur_row}, 当前tick = {cur_tick}, 最近一年出现次数 = {cur_count}")
-            if cur_count > 0:
-                break
-
-            for record_row in range(cur_row - 1, -1, -1):
-                data_diff = df.at[cur_row, "日期"] - df.at[record_row , "日期"]
-                if not self._IsTickRight(df.at[record_row, "代码"], record_row):
-                    continue
-
-                # Logger.log().info(f"record_row = {record_row}, record tick = {df.at[record_row, "代码"]}")
-                # print("record_row = ", record_row, "; data_diff = ",
-                #     data_diff, "; 是否最近一年 = ",data_diff <= datetime.timedelta(days=365))
-
-                if data_diff > datetime.timedelta(days=365):
-                    break
-
-                if data_diff > datetime.timedelta(days=0):
-                    continue
-
-                if cur_tick == df.at[record_row, "代码"]:
-                    tick_num += 1
-
-                if df.at[record_row , "日期"] in data_cache:
-                    data_cache[df.at[record_row , "日期"]].add(df.at[record_row, "代码"])
-                else:
-                    data_cache[df.at[record_row , "日期"]] = set(df.at[record_row, "代码"])
-
-            Logger.log().info(f"当前cur_row = {cur_row}, 当前tick = {cur_tick}, 最终tick_num = {tick_num}")
-            count_cache[cell_coordinate] = tick_num
-
-        # 保存并关闭Excel文件
-        self.WriteCount2File(count_cache, src_file, dst_file, sheet_name)
 
 if __name__== "__main__" :
     src_file = os.path.join(os.path.dirname(
