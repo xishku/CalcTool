@@ -203,17 +203,17 @@ class TdxDataAgent:
         sl_df = result_df[result_df["r_close"] <= sl_price]
 
         row_no = 0
-        tp_first = False
-        sl_first = False
+        tp_first = 0
+        sl_first = 0
         arrival_day = 0
         for index, item in result_df.iterrows():
             arrival_day = item["r_date"]
             if item["r_close"] >= tp_price:
-                tp_first = True
+                tp_first = 1
                 break
 
             if item["r_close"] <= sl_price:
-                sl_first = True
+                sl_first = -1
                 break
             row_no += 1
 

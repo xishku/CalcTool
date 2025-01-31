@@ -114,8 +114,9 @@ class CalcLast1YearCount:
             sheet['AP' + row] = value[3][1] / value[0][4]
             sheet['AQ' + row] = value[3][2]
             sheet['AR' + row] = value[3][3]
-            sheet['AS' + row] = value[3][4]
-            sheet['AT' + row] = self.FormatDate(int(value[3][5]))
+            sheet['AS' + row] = value[3][2] + value[3][3]
+            sheet['AT' + row] = value[3][4]
+            sheet['AU' + row] = self.FormatDate(int(value[3][5]))
 
     @staticmethod
     def can_convert_to_int(s):
