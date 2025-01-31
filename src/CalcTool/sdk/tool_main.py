@@ -112,6 +112,10 @@ class CalcLast1YearCount:
             sheet['AM' + row] = value[3][0] / value[0][4]
             sheet['AO' + row] = value[3][1]
             sheet['AP' + row] = value[3][1] / value[0][4]
+            sheet['AQ' + row] = value[3][2]
+            sheet['AR' + row] = value[3][3]
+            sheet['AS' + row] = value[3][4]
+            sheet['AT' + row] = self.FormatDate(int(value[3][5]))
 
     @staticmethod
     def can_convert_to_int(s):
@@ -173,13 +177,13 @@ class CalcLast1YearCount:
                     else:
                         Logger.log().debug("tick不存在")
         
-            date_cur = df.at[cur_row, "日期"]
-            date_target = df.at[cur_row, "目标日期"]
-            date_t2 = date_cur + datetime.timedelta(days=2)
-            cur_date = self._FormatDate2Str(date_cur)
-            target_date = self._FormatDate2Str(date_target)
-            t2_date = self._FormatDate2Str(date_t2)
-            Logger.log().info(f"cur_row = {cur_row}, cur_date = {cur_date}，target_date= {target_date}, 当前tick = {cur_tick}, 最终tick_num = {tick_num}")
+            date_t0 = df.at[cur_row, "日期"]
+            date_tn = df.at[cur_row, "目标日期"]
+            date_t2 = date_t0 + datetime.timedelta(days=2)
+            t0_date_num_str = self._FormatDate2Str(date_t0)
+            tn_date_num_str = self._FormatDate2Str(date_tn)
+            t2_date_num_str = self._FormatDate2Str(date_t2)
+            Logger.log().info(f"cur_row = {cur_row}, t0_date_num_str = {t0_date_num_str}，target_date= {tn_date_num_str}, 当前tick = {cur_tick}, 最终tick_num = {tick_num}")
             count_cache[cur_row] = tick_num
             
             agent = TdxDataAgent()
@@ -187,28 +191,46 @@ class CalcLast1YearCount:
             df_kdata = None
             Logger.log().debug(f"self._kdata_src = {self._kdata_src} type(self._kdata_src) = {type(self._kdata_src)}")
             if self._kdata_src == 0:
-                t2_str = date_t2.strftime("%Y-%m-%d")
-                target_str = date_target.strftime("%Y-%m-%d")
-                Logger.log().debug(f"code = {code} t2_str = {t2_str} target_str = {target_str}")
-                df_kdata = agent.read_online_kdata(code, t2_str, target_str)
+                t0_str = date_t0.strftime("%Y-%m-%d")
+                tn_str = date_tn.strftime("%Y-%m-%d")
+                Logger.log().debug(f"code = {code} t0_str = {t0_str} tn_str = {tn_str}")
+                df_kdata = agent.read_online_kdata(code, t0_str, tn_str)
             else:
-                df_kdata = agent.read_kdata_cache(code)
+                df_kdata = agent.read_kdata_cache(code, t0_date_num_str, tn_date_num_str)
             
-            if df_kdata is None or len(df_kdata) == 0:
+            if df_kdata is None or len(df_kdata) == 0 or df_kdata.empty:
                 Logger.log().error(f"没有正确获取到df_kdata")
+            else:
+                Logger.log().debug(f"str(cur_tick) = {str(cur_tick)} df_kdata = {df_kdata}") 
 
-            Logger.log().debug(f"str(cur_tick) = {str(cur_tick)} df_kdata = {df_kdata}") 
-            if not df_kdata.empty:
+                t0_price_origin = agent.get_price_by_date(df_kdata, int(t0_date_num_str))
+            
                 xdxr = TdxOnlineHqAgent().get_xdxr_info(str(cur_tick))
-                origin = agent.get_extreme_between_days(str(cur_tick), df_kdata, int(t2_date), int(target_date), xdxr)
-                pre = agent.get_pre_extreme_between_days(str(cur_tick), df_kdata, int(t2_date), int(target_date), xdxr)
-                post = agent.get_post_extreme_between_days(str(cur_tick), df_kdata, int(t2_date), int(target_date), xdxr)
 
-                base_price = df.at[cur_row, "收盘价"]
+                # 前复权
+                preadj_df = df_kdata.copy()
+                agent.pre_adj(preadj_df, xdxr, int(t0_date_num_str), int(tn_date_num_str))
+
+                # 后复权
+                postadj_df = df_kdata.copy()
+                agent.post_adj(postadj_df, xdxr, int(t0_date_num_str), int(tn_date_num_str))
+                # t0_price_post = agent.get_price_by_date(postadj_df, int(t0_date_num_str))
+
+                # 原值计算极值
+                origin = agent.get_extreme_value(df_kdata, int(t2_date_num_str), int(tn_date_num_str))
+                # agent.get_extreme_between_days(str(cur_tick), df_kdata, int(t2_date_num_str), int(tn_date_num_str), xdxr)
+                # 前复权值计算极值
+                pre = agent.get_extreme_value(preadj_df, int(t2_date_num_str), int(tn_date_num_str))
+                # agent.get_pre_extreme_between_days(str(cur_tick), df_kdata, int(t2_date_num_str), int(tn_date_num_str), xdxr)
+                # 后复权值计算极值
+                post = agent.get_extreme_value(postadj_df, int(t2_date_num_str), int(tn_date_num_str))
+                # agent.get_post_extreme_between_days(str(cur_tick), df_kdata, int(t2_date_num_str), int(tn_date_num_str), xdxr)
+
+                base_price = t0_price_origin
                 tp_price = base_price * (1 + df.at[cur_row, "止盈线"])
                 sl_price = base_price * (1 + df.at[cur_row, "止损线"])
-                tpsl = agent.get_post_takeprofit_stoploss_between_days(df_kdata, int(t2_date), int(target_date), xdxr, tp_price, sl_price)
-                extreme_cache[cur_row] = (origin, pre, post, tpsl)
+                tpsl = agent.get_takeprofit_stoploss_value(postadj_df, int(t2_date_num_str), int(tn_date_num_str), tp_price, sl_price)
+                extreme_cache[cur_row] = (origin, pre, post, tpsl, base_price)
                 
 
             cur_tick
