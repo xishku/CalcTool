@@ -69,6 +69,35 @@ class TdxOnlineHqAgent(Singleton):
     def close_connection(self):
         self.connect.close()
 
+        
+
+    @Dec.timeit_decorator
+    def get_security_list(self, market, start):
+        # api = TdxHq_API(heartbeat=True, auto_retry=True)
+        try:
+            # with api.connect('121.36.81.195', 7709):
+            xdxr = self.api.get_security_list(market, start)
+            return xdxr
+        except:
+            Logger.log().error("get_xdxr_info 网络问题重连中")
+            self.connect.close()
+            self.connect = self.api.connect('121.36.81.195', 7709)
+            return self.get_security_list(market, start)
+
+    @Dec.timeit_decorator
+    def get_finance_info(self, code: str):
+        # api = TdxHq_API(heartbeat=True, auto_retry=True)
+        try:
+            # with api.connect('121.36.81.195', 7709):
+            xdxr = self.api.get_finance_info(self.get_mkt_code(code), code)
+            return xdxr
+        except:
+            Logger.log().error("get_xdxr_info 网络问题重连中")
+            self.connect.close()
+            self.connect = self.api.connect('121.36.81.195', 7709)
+            return self.get_finance_info(code)
+        
+
     @Dec.timeit_decorator
     def get_xdxr_info(self, code: str):
         # api = TdxHq_API(heartbeat=True, auto_retry=True)

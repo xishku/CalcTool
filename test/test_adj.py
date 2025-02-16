@@ -155,6 +155,7 @@ class TestAdjFun(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+    get_finance_info
 
 
 
