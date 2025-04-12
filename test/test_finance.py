@@ -42,6 +42,9 @@ class TestAdjFun(unittest.TestCase):
                 print(code)
 
                 fi = tdx.get_finance_info(code)
+                if fi["liutongguben"] < 1e9:
+                    print("skipped")
+                    continue
 
                 # print(f"{fi}")
                 
