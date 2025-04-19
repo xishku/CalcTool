@@ -68,7 +68,10 @@ class TdxDataAgent:
         df['r_low'] = df['low'] / 100
         df['r_close'] = df['close'] / 100
         df['r_date'] = df['date']
-    
+        df['limitup'] = df['r_close'] >= round(df['preclose'] / 100 * 1.1, 2)
+        df['limitdown'] = df['r_close'] <= round(df['preclose'] / 100 * 0.9, 2)
+
+
         return df
     
     # 要求日期格式带-，如2025-01-31
@@ -86,6 +89,8 @@ class TdxDataAgent:
         df['r_low'] = df['low']
         df['r_close'] = df['close']
         df['r_date'] = 0
+        df['limitup'] = df['r_close'] >= round(df['preclose'] / 100 * 1.1, 2)
+        df['limitdown'] = df['r_close'] <= round(df['preclose'] / 100 * 0.9, 2)
 
         for index, item in df.iterrows():
             # Logger.log().info(type(item['date']))
