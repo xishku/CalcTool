@@ -15,7 +15,7 @@ from .data_online import TdxOnlineHqAgent
 from .timeit_decorator import Dec
 
 
-TDX_BASE = 'C:/new_tdx'
+TDX_BASE = 'd:/new_tdx'
 
 DAY_K_TYPE = np.dtype([
         ('date', 'u4'),
