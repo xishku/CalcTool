@@ -31,7 +31,7 @@ df = None
 def on_add(sel):
     # sel.target.index 获取的是鼠标点击/悬停位置的 x 轴索引（整数）
     # 注意：mplfinance 内部会将日期转换为整数索引进行绘图
-    idx = int(sel.index)
+    idx = int(sel.index[0]) if isinstance(sel.index, tuple) else int(sel.index)
     
     # 确保索引不越界
     if idx < len(df):
