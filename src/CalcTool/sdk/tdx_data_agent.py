@@ -4,6 +4,10 @@
 
 # -i https://pypi.tuna.tsinghua.edu.cn/simple
 
+from typing import LiteralString
+from pathlib import Path
+
+
 import os
 import datetime
 import pandas as pd
@@ -27,7 +31,13 @@ DAY_K_TYPE = np.dtype([
         ('volume', 'u4'),
         ('res', 'u4')])
 
-class TdxDataAgent:    
+
+
+class TdxDataAgent:
+    EXCODE_SH = 'sh'
+    EXCODE_SZ = 'sz'
+    EXCODE_BJ = 'bj'
+
     def get_exchcode(self, qkey):
         if qkey[0] == '6':
             excode = 'sh'
@@ -36,10 +46,25 @@ class TdxDataAgent:
 
         return excode
 
+    def get_code_list_by_excode(self, excode):
+        path = Path(TDX_BASE) / f"vipdoc/{excode}/lday"
+        day_files = list(path.glob(pattern="*.day"))
+
+        for file in day_files:
+            filename = Path(file).stem
+            code = filename[2:] 
+            yield(code)
+
+    def get_code_list_all(self):
+        yield from self.get_code_list_by_excode(self.EXCODE_SH)
+        yield from self.get_code_list_by_excode(self.EXCODE_SZ)
+        yield from self.get_code_list_by_excode(self.EXCODE_BJ)
+
+
     def get_tdxfn(self, qkey, dtype):
         excode = self.get_exchcode(qkey)
         if dtype == 'd':
-            fn = '%s/vipdoc/%s/lday/%s%s.day' % (TDX_BASE, excode, excode, qkey)
+            fn: LiteralString = '%s/vipdoc/%s/lday/%s%s.day' % (TDX_BASE, excode, excode, qkey)
         elif dtype == '5min':
             fn = '%s/vipdoc/%s/fzline/%s%s.lc5' % (TDX_BASE, excode, excode, qkey)
 
