@@ -72,14 +72,14 @@ class Stock(object):
             else:
                 count = 0
             
-            # if count >= 1:
-            #     print(f"{preadj_df.loc[i, 'date']:.2f}\t\
-            #     {preadj_df.loc[i, 'r_close']:.2f}\t\
-            #     {preadj_df.loc[i, 'r_preclose']:.2f}\t\
-            #     {percent:.4f}\
-            #     ")
-            # else:
-            #     print(i, count)
+            if count >= 1:
+                print(f"{preadj_df.loc[i, 'date']:.2f}\t\
+                {preadj_df.loc[i, 'r_close']:.2f}\t\
+                {preadj_df.loc[i, 'r_preclose']:.2f}\t\
+                {percent:.4f}\
+                ")
+            else:
+                print(i, count)
 
             if count >= 3:
                 matched_data.append(preadj_df.loc[i, 'date'])
@@ -113,7 +113,7 @@ class StockOnline(Stock):
 
 
 if __name__ == '__main__':
-    tick = "000011"
+    tick = "600365"
     t0_date = 20260301
     tn_date = 20260330
     stock1 = Stock.create(tick)
