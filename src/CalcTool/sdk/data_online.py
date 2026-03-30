@@ -2,6 +2,7 @@ from pytdx.hq import TdxHq_API
 from pytdx.util.best_ip import select_best_ip
 from .logger import Logger
 from .timeit_decorator import Dec
+from .setting import TdxSetting
 
 
 def get_best_tdx_server():    
@@ -60,7 +61,7 @@ class Singleton(metaclass=SingletonMeta):
 class TdxOnlineHqAgent(Singleton):
     def __init__(self):
         self.api = TdxHq_API(heartbeat=True, auto_retry=True)
-        self.connect = self.api.connect('121.36.81.195', 7709)
+        self.connect = self.api.connect(TdxSetting.get_value("tdx_server"), TdxSetting.get_value("tdx_port"))
         Logger.log().info(f"TdxOnlineHqAgent.__init__ self = {id(self)}")
 
     def __del__(self):
@@ -75,40 +76,35 @@ class TdxOnlineHqAgent(Singleton):
     def get_security_list(self, market, start):
         # api = TdxHq_API(heartbeat=True, auto_retry=True)
         try:
-            # with api.connect('121.36.81.195', 7709):
             xdxr = self.api.get_security_list(market, start)
             return xdxr
         except:
-            Logger.log().error("get_xdxr_info 网络问题重连中")
+            Logger.log().error("get_security_list 网络问题重连中")
             self.connect.close()
-            self.connect = self.api.connect('121.36.81.195', 7709)
+            self.connect = self.api.connect(TdxSetting.get_value("tdx_server"), TdxSetting.get_value("tdx_port"))
             return self.get_security_list(market, start)
 
     @Dec.timeit_decorator
     def get_finance_info(self, code: str):
-        # api = TdxHq_API(heartbeat=True, auto_retry=True)
         try:
-            # with api.connect('121.36.81.195', 7709):
             xdxr = self.api.get_finance_info(self.get_mkt_code(code), code)
             return xdxr
         except:
-            Logger.log().error("get_xdxr_info 网络问题重连中")
+            Logger.log().error("get_finance_info 网络问题重连中")
             self.connect.close()
-            self.connect = self.api.connect('121.36.81.195', 7709)
+            self.connect = self.api.connect(TdxSetting.get_value("tdx_server"), TdxSetting.get_value("tdx_port"))
             return self.get_finance_info(code)
         
 
     @Dec.timeit_decorator
     def get_xdxr_info(self, code: str):
-        # api = TdxHq_API(heartbeat=True, auto_retry=True)
         try:
-            # with api.connect('121.36.81.195', 7709):
             xdxr = self.api.get_xdxr_info(self.get_mkt_code(code), code)
             return xdxr
         except:
             Logger.log().error("get_xdxr_info 网络问题重连中")
             self.connect.close()
-            self.connect = self.api.connect('121.36.81.195', 7709)
+            self.connect = self.api.connect(TdxSetting.get_value("tdx_server"), TdxSetting.get_value("tdx_port"))
             return self.get_xdxr_info(code)
         
     @Dec.timeit_decorator
@@ -116,9 +112,9 @@ class TdxOnlineHqAgent(Singleton):
         try:
             return self.api.get_k_data(code, start_date, end_date)
         except:
-            Logger.log().error("get_xdxr_info 网络问题重连中")
+            Logger.log().error("get_kdata 网络问题重连中")
             self.connect.close()
-            self.connect = self.api.connect('121.36.81.195', 7709)
+            self.connect = self.api.connect(TdxSetting.get_value("tdx_server"), TdxSetting.get_value("tdx_port"))
             return self.get_xdxr_info(code, start_date, end_date)
         
     def get_mkt_code(self, code):
@@ -133,7 +129,7 @@ if __name__ == '__main__':
     
 
     api = TdxHq_API(heartbeat=True, auto_retry=True)
-    with api.connect('121.36.81.195', 7709):
+    with api.connect(TdxSetting.get_value("tdx_server"), TdxSetting.get_value("tdx_port")):
         print("OK")
         # data = api.get_security_bars(9, 0, '000001', 0, 10) #返回普通list
         # print(data)
