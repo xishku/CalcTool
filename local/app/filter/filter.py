@@ -36,7 +36,7 @@ if __name__ == '__main__':
 
     for index, code in enumerate(code_list, start=1):
         print(f"第 {index} 个代码: {code}")
-        t0_date = 20251208
+        t0_date = 20260301
         tn_date = 20260330
         stock1 = Stock.create(code)
         stock1.find_up_day(t0_date, tn_date)

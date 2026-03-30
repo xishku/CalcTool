@@ -62,11 +62,15 @@ class Stock(object):
 
         count = 0
         threshold_high = 0.03
-        threshold_low = 0.001
+        threshold_low = 0.01
         matched_data = list()
         for i in range(len(preadj_df)):
             percent = preadj_df.loc[i, 'r_close'] / preadj_df.loc[i, 'r_preclose'] - 1
 
+            if percent < threshold_high and percent > threshold_low:
+                count += 1
+            else:
+                count = 0
             
             # if count >= 1:
             #     print(f"{preadj_df.loc[i, 'date']:.2f}\t\
@@ -79,11 +83,6 @@ class Stock(object):
 
             if count >= 3:
                 matched_data.append(preadj_df.loc[i, 'date'])
-
-            if percent < threshold_high and percent > threshold_low:
-                count += 1
-            else:
-                count = 0
 
         if len(matched_data) == 0:
             return
@@ -114,8 +113,8 @@ class StockOnline(Stock):
 
 
 if __name__ == '__main__':
-    tick = "601398"
-    t0_date = 20251208
+    tick = "000011"
+    t0_date = 20260301
     tn_date = 20260330
     stock1 = Stock.create(tick)
     stock1.find_up_day(t0_date, tn_date)
