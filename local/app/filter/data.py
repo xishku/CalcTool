@@ -43,15 +43,15 @@ class Stock(object):
         else:
             raise ValueError(f"不支持的数据源: {source}")
     
-    def find_up_day(self, start_date, end_date):
-        df_kdata = stock1.load_k_data(t0_date, tn_date)
+    def find_up_day(self, t0_date, tn_date):
+        df_kdata = self.load_k_data(t0_date, tn_date)
 
         if df_kdata is None or len(df_kdata) == 0 or df_kdata.empty:
             Logger.log().error(f"没有正确获取到df_kdata")
         else:
-            Logger.log().debug(f"str(cur_tick) = {str(tick)} df_kdata = {df_kdata}") 
+            Logger.log().debug(f"str(cur_tick) = {str(self._code)} df_kdata = {df_kdata}") 
 
-        xdxr = TdxOnlineHqAgent().get_xdxr_info(str(tick))
+        xdxr = TdxOnlineHqAgent().get_xdxr_info(str(self._code))
         # print(xdxr)
 
         # 前复权
@@ -85,8 +85,11 @@ class Stock(object):
             else:
                 count = 0
 
+        if len(matched_data) == 0:
+            return
+
         with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "list.txt"), mode="a", newline="", encoding="utf-8") as file:
-            file.write(f"\n{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')}\t{tick}\t")
+            file.write(f"\n{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')}\t{self._code}\t")
             file.write('\t'.join(str(item) for item in matched_data))
 
 
@@ -117,65 +120,5 @@ if __name__ == '__main__':
     stock1 = Stock.create(tick)
     stock1.find_up_day(t0_date, tn_date)
     Logger.log().info("finished")
-    
-
-
-    # 自动测速并返回最优服务器IP和端口
-    # best_ip_info = select_best_ip()
-    # print(f"最优服务器: IP={best_ip_info['ip']}, 端口={best_ip_info['port']}")    
-    # print("return:", TdxSetting.get_value("tdx_server"), )
-
-    # tick = "601398"
-    # t0_date = 20251208
-    # tn_date = 20260330
-    # stock1 = Stock.create(tick)
-
-    # df_kdata = stock1.load_k_data(t0_date, tn_date)
-
-    # if df_kdata is None or len(df_kdata) == 0 or df_kdata.empty:
-    #     Logger.log().error(f"没有正确获取到df_kdata")
-    # else:
-    #     Logger.log().debug(f"str(cur_tick) = {str(tick)} df_kdata = {df_kdata}") 
-
-
-    # xdxr = TdxOnlineHqAgent().get_xdxr_info(str(tick))
-    # # print(xdxr)
-
-    # # 前复权
-    # preadj_df = df_kdata.copy()
-    # TdxDataAgent().pre_adj(preadj_df, xdxr, int(t0_date), int(tn_date))
-    # # simple_cols = ['date', 'r_close', 'volume', 'preclose', 'r_preclose']
-    # # print(preadj_df[simple_cols])
-
-    # count = 0
-    # threshold_high = 0.03
-    # threshold_low = 0.001
-    # matched_data = list()
-    # for i in range(len(preadj_df)):
-    #     percent = preadj_df.loc[i, 'r_close'] / preadj_df.loc[i, 'r_preclose'] - 1
-
-        
-    #     if count >= 1:
-    #         print(f"{preadj_df.loc[i, 'date']:.2f}\t\
-    #         {preadj_df.loc[i, 'r_close']:.2f}\t\
-    #         {preadj_df.loc[i, 'r_preclose']:.2f}\t\
-    #         {percent:.4f}\
-    #         ")
-    #     else:
-    #         print(i, count)
-
-    #     if count >= 3:
-    #         print("matched")
-    #         matched_data.append(preadj_df.loc[i, 'date'])
-
-    #     if percent < threshold_high and percent > threshold_low:
-    #         count += 1
-    #     else:
-    #         count = 0
-
-    # print(matched_data)
-
-    # with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "list.txt"), mode="w", newline="", encoding="utf-8") as file:
-    #     file.write(f"\n{tick}\t")
-    #     file.write('\t'.join(str(item) for item in matched_data))
+  
 

@@ -15,12 +15,14 @@ matplotlib.rcParams['axes.unicode_minus'] = False  # 负号正常显示
 import pandas as pd
 import datetime
 import mplcursors
+from data import Stock
 
 print(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../../src"))
 sys.path.append(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../../src"))
 from CalcTool.sdk.tool_main import CalcLast1YearCount
 from CalcTool.sdk.logger import Logger
 from CalcTool.sdk.tdx_data_agent import TdxDataAgent
+from CalcTool.sdk.logger import Logger
 
 
 from pytdx.hq import TdxHq_API 
@@ -34,6 +36,12 @@ if __name__ == '__main__':
 
     for index, code in enumerate(code_list, start=1):
         print(f"第 {index} 个代码: {code}")
+        t0_date = 20251208
+        tn_date = 20260330
+        stock1 = Stock.create(code)
+        stock1.find_up_day(t0_date, tn_date)
+    
+    Logger.log().info("finished")
 
 
    

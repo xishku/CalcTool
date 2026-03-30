@@ -130,7 +130,7 @@ class TdxDataAgent:
 
     # data format: 数字20250131
     def post_adj(self, data_df, xdxr, start_date, end_date):
-        if xdxr is None:
+        if xdxr is None or len(xdxr) == 0 or data_df.empty:
             return
 
         for row in xdxr:
@@ -171,7 +171,7 @@ class TdxDataAgent:
 
     # data format: 数字20250131
     def pre_adj(self, data_df, xdxr, start_date, end_date):
-        if xdxr is None:
+        if xdxr is None or len(xdxr) == 0 or data_df.empty:
             return
         
         for row in xdxr:
