@@ -202,7 +202,7 @@ class TdxDataAgent:
                 data_df.loc[index, 'r_low'] = self.value_pre_adj(item['r_low'], fenhong, songzhuanggu)
                 data_df.loc[index, 'r_open'] = self.value_pre_adj(item['r_open'], fenhong, songzhuanggu)
                 data_df.loc[index, 'r_close'] = self.value_pre_adj(item['r_close'], fenhong, songzhuanggu)
-                data_df.loc[index, 'r_preclose'] = self.value_post_adj(item['r_preclose'], fenhong, songzhuanggu)
+                data_df.loc[index, 'r_preclose'] = self.value_pre_adj(item['r_preclose'], fenhong, songzhuanggu)
 
         data_df['limitup'] = data_df['r_close'] >= round(number=data_df['r_preclose'] / 100 * 1.1, ndigits=2)
         data_df['limitdown'] = data_df['r_close'] <= round(data_df['r_preclose'] / 100 * 0.9, ndigits=2)            

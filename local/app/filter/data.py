@@ -70,7 +70,7 @@ if __name__ == '__main__':
 
     tick = "601398"
     t0_date = 20251208
-    tn_date = 20251222
+    tn_date = 20260330
     stock1 = Stock.create(tick)
 
     df_kdata = stock1.load_k_data(t0_date, tn_date)
@@ -82,11 +82,38 @@ if __name__ == '__main__':
 
 
     xdxr = TdxOnlineHqAgent().get_xdxr_info(str(tick))
-    print(xdxr)
+    # print(xdxr)
 
     # 前复权
     preadj_df = df_kdata.copy()
     TdxDataAgent().pre_adj(preadj_df, xdxr, int(t0_date), int(tn_date))
-    simple_cols = ['date', 'r_close', 'volume', 'preclose', 'r_preclose']
-    print(preadj_df[simple_cols])
-    print(df_kdata[simple_cols])
+    # simple_cols = ['date', 'r_close', 'volume', 'preclose', 'r_preclose']
+    # print(preadj_df[simple_cols])
+
+    count = 0
+    threshold_high = 0.03
+    threshold_low = 0.001
+    for i in range(len(preadj_df)):
+        percent = preadj_df.loc[i, 'r_close'] / preadj_df.loc[i, 'r_preclose'] - 1
+
+        
+        if count >= 1:
+            print(f"{preadj_df.loc[i, 'date']:.2f}\t\
+            {preadj_df.loc[i, 'r_close']:.2f}\t\
+            {preadj_df.loc[i, 'r_preclose']:.2f}\t\
+            {percent:.4f}\
+            ")
+        else:
+            print(i, count)
+
+        if count >= 3:
+            print("matched")
+            
+
+
+        if percent < threshold_high and percent > threshold_low:
+            count += 1
+        else:
+            count = 0
+
+
