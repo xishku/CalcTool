@@ -15,7 +15,7 @@ import mplcursors
 import tkinter as tk
 from tkinter import simpledialog, messagebox
 import matplotlib.dates as mdates
-from matplotlib.ticker import MaxNLocator
+from matplotlib.ticker import MaxNLocator, FuncFormatter
 
 print(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../../src"))
 sys.path.append(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../../src"))
@@ -31,10 +31,10 @@ def on_add(sel):
         date_str = str(row['date'])
         
         text = (f"日期: {date_str}\n"
-                f"开盘: {row['Open']:.2f}\n"
-                f"最高: {row['High']:.2f}\n"
-                f"最低: {row['Low']:.2f}\n"
-                f"收盘: {row['Close']:.2f}")
+                f"开盘: {row['Open']:.3f}\n"
+                f"最高: {row['High']:.3f}\n"
+                f"最低: {row['Low']:.3f}\n"
+                f"收盘: {row['Close']:.3f}")
         
         sel.annotation.set_text(text)
         sel.annotation.get_bbox_patch().set(alpha=0.9, facecolor='lightyellow')
@@ -80,6 +80,19 @@ def locate_to_date():
         root.withdraw()
         messagebox.showerror("错误", f"日期格式错误: {e}\n请使用 YYYY-MM-DD 或 YYYYMMDD 格式")
         root.destroy()
+
+def format_y_axis(value, pos):
+    """格式化Y轴刻度，保留适当的小数位数"""
+    if value >= 1000:
+        return f'{value:,.0f}'
+    elif value >= 100:
+        return f'{value:.1f}'
+    elif value >= 10:
+        return f'{value:.2f}'
+    elif value >= 1:
+        return f'{value:.3f}'
+    else:
+        return f'{value:.4f}'
 
 def refresh_chart(highlight_idx=None, is_locate=False, locate_date_str="", min_diff=0):
     """刷新图表显示"""
@@ -178,6 +191,16 @@ def refresh_chart(highlight_idx=None, is_locate=False, locate_date_str="", min_d
         ax2.set_xticks(tick_positions)
         ax2.set_xticklabels(tick_labels, fontsize=9)
     
+    # 设置Y轴格式
+    ax1.yaxis.set_major_formatter(FuncFormatter(format_y_axis))
+    
+    # 设置Y轴刻度密度
+    ax1.yaxis.set_major_locator(MaxNLocator(prune='both', nbins=8))
+    
+    # 添加Y轴标签
+    ax1.set_ylabel('价格', fontsize=10)
+    ax2.set_ylabel('成交量', fontsize=10)
+    
     # 在图表最下方添加完整的日期说明
     if len(current_display_df) > 0:
         first_date = current_display_df.iloc[0]['Date'].strftime('%Y-%m-%d')
@@ -257,34 +280,130 @@ if __name__ == '__main__':
     print("正在加载数据...")
     
     # 注意：当前是2026年4月1日，获取2026年3月到4月的数据
-    df = agent.read_kdata_cache(stock_code, "20260301", "20260401")
-    
-    if df is None or df.empty:
-        print("无法获取实时数据，创建模拟数据...")
-    else:
+    try:
+        df = agent.read_kdata_cache(stock_code, "20260301", "20260401")
+        
+        if df is None or df.empty:
+            print("错误：无法获取数据，程序退出")
+            sys.exit(1)
+            
         print(f"获取数据成功，共{len(df)}条记录")
-    
-    # 处理数据格式
-    print("处理数据格式...")
-    df['Open'] = df['r_open']
-    df['High'] = df['r_high']
-    df['Low'] = df['r_low']
-    df['Close'] = df['r_close']
-    df['Volume'] = df['volume']
-    df['Date'] = pd.to_datetime(df['date'], format='%Y%m%d', errors='coerce')
-    
-    # 删除无效日期
-    df = df.dropna(subset=['Date'])
-    df = df.sort_values('Date')
-    
-    # 获取日期范围字符串
-    if len(df) > 0:
+        
+        # 处理数据格式 - 使用实际价格，不除以100
+        print("处理数据格式...")
+        
+        # 检查数据列
+        print("数据列名:", df.columns.tolist())
+        
+        # 根据实际列名处理数据
+        if 'r_open' in df.columns and 'r_high' in df.columns and 'r_low' in df.columns and 'r_close' in df.columns:
+            # 使用复权价格
+            df['Open'] = df['r_open']
+            df['High'] = df['r_high']
+            df['Low'] = df['r_low']
+            df['Close'] = df['r_close']
+        elif 'open' in df.columns and 'high' in df.columns and 'low' in df.columns and 'close' in df.columns:
+            # 使用原始价格
+            df['Open'] = df['open']
+            df['High'] = df['high']
+            df['Low'] = df['low']
+            df['Close'] = df['close']
+        else:
+            print("错误：数据中未找到价格列")
+            print("可用列:", df.columns.tolist())
+            sys.exit(1)
+        
+        # 确保价格是数值类型
+        for col in ['Open', 'High', 'Low', 'Close']:
+            df[col] = pd.to_numeric(df[col], errors='coerce')
+        
+        # 检查是否有有效的价格数据
+        if df[['Open', 'High', 'Low', 'Close']].isna().all().all():
+            print("错误：所有价格数据均为NaN")
+            sys.exit(1)
+        
+        # 处理缺失值 - 不使用fillna的method参数
+        for col in ['Open', 'High', 'Low', 'Close']:
+            # 检查是否全为NaN
+            if df[col].isna().all():
+                print(f"警告：{col}列全为NaN，使用0填充")
+                df[col] = 0
+            else:
+                # 手动向前填充NaN值
+                prev_value = None
+                for i in range(len(df)):
+                    if pd.isna(df.at[i, col]):
+                        if prev_value is not None:
+                            df.at[i, col] = prev_value
+                    else:
+                        prev_value = df.at[i, col]
+                
+                # 如果还有NaN（比如第一行就是NaN），向后填充
+                if df[col].isna().any():
+                    # 找到第一个非NaN值
+                    first_valid_idx = df[col].first_valid_index()
+                    if first_valid_idx is not None:
+                        first_valid_value = df.at[first_valid_idx, col]
+                        df[col] = df[col].fillna(first_valid_value)
+        
+        # 处理成交量
+        if 'volume' in df.columns:
+            df['Volume'] = pd.to_numeric(df['volume'], errors='coerce')
+            # 处理缺失值
+            if df['Volume'].isna().all():
+                df['Volume'] = 100000
+            else:
+                # 手动处理缺失值
+                prev_volume = None
+                for i in range(len(df)):
+                    if pd.isna(df.at[i, 'Volume']):
+                        if prev_volume is not None:
+                            df.at[i, 'Volume'] = prev_volume
+                    else:
+                        prev_volume = df.at[i, 'Volume']
+                
+                if df['Volume'].isna().any():
+                    df['Volume'] = df['Volume'].fillna(100000)
+        else:
+            print("警告：未找到成交量列，使用默认值")
+            df['Volume'] = 100000
+        
+        # 处理日期
+        if 'date' in df.columns:
+            df['Date'] = pd.to_datetime(df['date'], format='%Y%m%d', errors='coerce')
+        else:
+            print("错误：未找到日期列")
+            sys.exit(1)
+        
+        # 删除无效日期
+        original_len = len(df)
+        df = df.dropna(subset=['Date'])
+        if len(df) < original_len:
+            print(f"警告：删除了{original_len - len(df)}条无效日期记录")
+        
+        df = df.sort_values('Date')
+        
+        if len(df) == 0:
+            print("错误：没有有效的日期数据")
+            sys.exit(1)
+        
+        # 获取日期范围字符串
         start_date_str = str(df['date'].iloc[0])
         end_date_str = str(df['date'].iloc[-1])
+        
+        # 打印价格范围
+        price_min = df['Close'].min()
+        price_max = df['Close'].max()
         print(f"数据日期范围: {start_date_str} 到 {end_date_str}")
-    else:
-        start_date_str = "无数据"
-        end_date_str = "无数据"
+        print(f"价格范围: {price_min:.3f} 到 {price_max:.3f}")
+        print(f"数据示例（前5行）:")
+        print(df[['date', 'Open', 'High', 'Low', 'Close']].head())
+        
+    except Exception as e:
+        print(f"数据加载或处理出错: {e}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
     
     # 创建图形
     fig = plt.figure(figsize=(14, 9))
