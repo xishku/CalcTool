@@ -8,6 +8,7 @@
 3. 点击左侧行，右侧显示详细信息
 4. 支持加载扩展的K线图，默认聚焦在基准日期区间
 5. 集成mplfinance绘制专业的K线图
+6. 支持跳转到同花顺查看股票K线图
 """
 
 import tkinter as tk
@@ -26,6 +27,9 @@ import mplcursors
 from pathlib import Path
 import numpy as np
 import csv
+import webbrowser
+import subprocess
+import platform
 
 
 class ListFileParser:
@@ -286,6 +290,7 @@ class KLineChartManager:
         self.cursor = None
         self.current_df = None
         self.plot_df = None
+        self.kline_data = None  # 存储K线图数据
         
         # 扩展天数
         self.extend_days = 20
@@ -299,23 +304,35 @@ class KLineChartManager:
         # 数据获取代理
         self.data_agent = None
         
+    def safe_get_value(self, row, key, default="N/A"):
+        """安全获取值，防止KeyError"""
+        try:
+            if key in row:
+                value = row[key]
+                if pd.isna(value):
+                    return default
+                return value
+            return default
+        except:
+            return default
+    
     def on_add(self, sel):
         """鼠标悬停提示的回调函数"""
-        if self.current_df is None or len(self.current_df) == 0:
+        if self.kline_data is None or len(self.kline_data) == 0:
             return
         
         # 获取鼠标位置的索引
         idx = int(sel.index[0]) if isinstance(sel.index, tuple) else int(sel.index)
         
         # 确保索引不越界
-        if idx < len(self.current_df):
-            row = self.current_df.iloc[idx]
+        if idx < len(self.kline_data):
+            row = self.kline_data.iloc[idx]
             
             # 获取对应的日期
-            if 'date' in self.current_df.columns:
-                date_str = str(self.current_df['date'].iloc[idx])
-            else:
-                date_str = str(self.current_df.index[idx])
+            date_str = "N/A"
+            if hasattr(self, 'current_df') and self.current_df is not None and idx < len(self.current_df):
+                if 'date' in self.current_df.columns:
+                    date_str = str(self.safe_get_value(self.current_df.iloc[idx], 'date', 'N/A'))
             
             # 检查是否在基准区间内
             in_base_period = ""
@@ -323,12 +340,31 @@ class KLineChartManager:
                 if self.base_start_idx <= idx <= self.base_end_idx:
                     in_base_period = " (基准区间内)"
             
+            # 使用安全的方式获取值
+            open_val = self.safe_get_value(row, 'Open', 'N/A')
+            high_val = self.safe_get_value(row, 'High', 'N/A')
+            low_val = self.safe_get_value(row, 'Low', 'N/A')
+            close_val = self.safe_get_value(row, 'Close', 'N/A')
+            
+            # 格式化数值
+            try:
+                if open_val != 'N/A':
+                    open_val = f"{float(open_val):.2f}"
+                if high_val != 'N/A':
+                    high_val = f"{float(high_val):.2f}"
+                if low_val != 'N/A':
+                    low_val = f"{float(low_val):.2f}"
+                if close_val != 'N/A':
+                    close_val = f"{float(close_val):.2f}"
+            except:
+                pass
+            
             # 自定义显示的文本内容
             text = (f"日期: {date_str}{in_base_period}\n"
-                    f"开盘: {row['Open']:.2f}\n"
-                    f"最高: {row['High']:.2f}\n"
-                    f"最低: {row['Low']:.2f}\n"
-                    f"收盘: {row['Close']:.2f}")
+                    f"开盘: {open_val}\n"
+                    f"最高: {high_val}\n"
+                    f"最低: {low_val}\n"
+                    f"收盘: {close_val}")
             
             # 设置提示框文本
             sel.annotation.set_text(text)
@@ -418,22 +454,48 @@ class KLineChartManager:
         # 复制数据
         plot_df = df.copy()
         
+        # 确保有必要的列
+        required_columns = {'open', 'high', 'low', 'close', 'volume'}
+        available_columns = set(plot_df.columns)
+        
+        # 检查并创建缺失的列
+        for col in required_columns:
+            if col not in available_columns:
+                if col == 'volume':
+                    plot_df[col] = 0
+                else:
+                    plot_df[col] = 0.0
+        
         # 准备mplfinance所需的列
-        if 'open' in plot_df.columns:
-            plot_df['Open'] = plot_df['open']
-        if 'high' in plot_df.columns:
-            plot_df['High'] = plot_df['high'] / 100
-        if 'low' in plot_df.columns:
-            plot_df['Low'] = plot_df['low'] / 100
-        if 'close' in plot_df.columns:
-            plot_df['Close'] = plot_df['close'] / 100
-        if 'volume' in plot_df.columns:
-            plot_df['Volume'] = plot_df['volume']
+        column_mapping = {
+            'open': 'Open',
+            'high': 'High',
+            'low': 'Low', 
+            'close': 'Close',
+            'volume': 'Volume'
+        }
+        
+        for src_col, target_col in column_mapping.items():
+            if src_col in plot_df.columns:
+                if src_col == 'high' or src_col == 'low' or src_col == 'close':
+                    # 如果价格已经是除以100的，就不需要再除
+                    if plot_df[src_col].max() < 1000:  # 假设价格小于1000表示已经是除以100后的
+                        plot_df[target_col] = plot_df[src_col]
+                    else:
+                        plot_df[target_col] = plot_df[src_col] / 100
+                else:
+                    plot_df[target_col] = plot_df[src_col]
         
         # 设置日期索引
         if 'date' in plot_df.columns:
             plot_df['Date'] = pd.to_datetime(plot_df['date'])
             plot_df.set_index('Date', inplace=True)
+        elif plot_df.index.name == 'Date' or isinstance(plot_df.index, pd.DatetimeIndex):
+            # 已经设置好了
+            pass
+        else:
+            # 创建默认日期索引
+            plot_df.index = pd.date_range(start='2024-01-01', periods=len(plot_df), freq='D')
         
         return plot_df
     
@@ -523,8 +585,8 @@ class KLineChartManager:
         if df is None or df.empty:
             raise ValueError(f"无法获取股票 {stock_code} 的扩展数据")
         
-        # 保存当前数据框用于鼠标悬停提示
-        self.current_df = df
+        # 保存原始数据
+        self.current_df = df.copy()
         
         # 准备数据
         plot_df = self.prepare_data_for_mplfinance(df)
@@ -532,7 +594,8 @@ class KLineChartManager:
             raise ValueError("数据格式错误，无法绘制K线图")
         
         # 保存plot_df用于后续操作
-        self.plot_df = plot_df
+        self.plot_df = plot_df.copy()
+        self.kline_data = plot_df.copy()  # 保存K线图数据用于鼠标悬停
         
         # 获取实际显示的数据范围
         if 'date' in df.columns:
@@ -670,6 +733,7 @@ class KLineChartManager:
         self.cursor = None
         self.current_df = None
         self.plot_df = None
+        self.kline_data = None
 
 
 class StockDataGUI:
@@ -965,6 +1029,15 @@ class StockDataGUI:
         )
         focus_base_btn.pack(side=tk.LEFT, padx=5)
         
+        # 同花顺查看按钮
+        ths_btn = ttk.Button(
+            button_frame, 
+            text="同花顺查看", 
+            command=self.open_ths,
+            style="Accent.TButton"  # 使用特殊样式突出显示
+        )
+        ths_btn.pack(side=tk.LEFT, padx=5)
+        
         # 导出数据按钮
         export_btn = ttk.Button(button_frame, text="导出选中数据", command=self.export_selected)
         export_btn.pack(side=tk.RIGHT, padx=5)
@@ -973,6 +1046,172 @@ class StockDataGUI:
         """创建状态栏"""
         self.statusbar = ttk.Label(self.root, text="就绪", relief=tk.SUNKEN, anchor=tk.W)
         self.statusbar.pack(side=tk.BOTTOM, fill=tk.X)
+    
+    def open_ths(self):
+        """打开同花顺查看股票K线图"""
+        code = self.selected_stock.get('code')
+        if not code:
+            messagebox.showinfo("提示", "请先选择一条股票数据")
+            return
+        
+        # 获取基准日期
+        start_date = self.start_date_var.get()
+        end_date = self.end_date_var.get()
+        
+        if not start_date or not end_date:
+            messagebox.showinfo("提示", "请先设置基准日期区间")
+            return
+        
+        try:
+            # 尝试多种方式打开同花顺
+            self._open_ths_stock(code, start_date, end_date)
+            
+        except Exception as e:
+            messagebox.showerror("打开同花顺错误", f"打开同花顺时出错: {str(e)}\n\n您可以手动打开同花顺，查看股票: {code}")
+            self.statusbar.config(text=f"打开同花顺失败: {str(e)}")
+    
+    def _open_ths_stock(self, code: str, start_date: str, end_date: str):
+        """打开同花顺查看股票"""
+        # 格式化日期
+        try:
+            start_dt = datetime.strptime(start_date, "%Y%m%d")
+            end_dt = datetime.strptime(end_date, "%Y%m%d")
+            
+            # 转换为同花顺可能使用的格式
+            start_str = start_dt.strftime("%Y-%m-%d")
+            end_str = end_dt.strftime("%Y-%m-%d")
+        except:
+            start_str = start_date
+            end_str = end_date
+        
+        # 尝试多种方法打开同花顺
+        
+        # 方法1: 同花顺URL协议
+        try:
+            # 同花顺的URL协议格式: ths://code
+            ths_url = f"ths://{code}"
+            webbrowser.open(ths_url)
+            self.statusbar.config(text=f"正在通过URL协议打开同花顺: {code}")
+            return
+        except:
+            pass
+        
+        # 方法2: 同花顺客户端协议
+        try:
+            # 同花顺客户端可能支持的命令
+            system = platform.system()
+            
+            if system == "Windows":
+                # Windows系统
+                ths_paths = [
+                    r"C:\同花顺软件\同花顺\hexinlauncher.exe",  # 同花顺交易客户端
+                    # r"C:\Program Files\同花顺\xiadan.exe",
+                    # r"C:\Program Files (x86)\同花顺\xiadan.exe",
+                    # r"C:\ths\xiadan.exe",
+                ]
+                
+                for ths_path in ths_paths:
+                    if os.path.exists(ths_path):
+                        # 使用subprocess打开同花顺
+                        cmd = [ths_path, f"code={code}"]
+                        subprocess.Popen(cmd)
+                        self.statusbar.config(text=f"正在打开同花顺客户端: {code}")
+                        return
+                
+                # 如果找不到可执行文件，尝试用thssafe协议
+                thssafe_url = f"thssafe://{code}"
+                webbrowser.open(thssafe_url)
+                self.statusbar.config(text=f"正在通过thssafe协议打开: {code}")
+                return
+                
+            elif system == "Darwin":  # macOS
+                ths_paths = [
+                    "/Applications/同花顺.app",
+                    "/Applications/Ths.app",
+                ]
+                
+                for ths_path in ths_paths:
+                    if os.path.exists(ths_path):
+                        subprocess.Popen(["open", ths_path, "--args", f"code={code}"])
+                        self.statusbar.config(text=f"正在打开macOS同花顺: {code}")
+                        return
+                        
+            elif system == "Linux":
+                # Linux系统
+                ths_paths = [
+                    "/opt/同花顺/同花顺",
+                    "/usr/bin/同花顺",
+                    "/usr/local/bin/同花顺",
+                ]
+                
+                for ths_path in ths_paths:
+                    if os.path.exists(ths_path):
+                        subprocess.Popen([ths_path, f"code={code}"])
+                        self.statusbar.config(text=f"正在打开Linux同花顺: {code}")
+                        return
+            
+        except Exception as e:
+            print(f"打开同花顺客户端失败: {e}")
+        
+        # 方法3: 同花顺网页版
+        try:
+            # 同花顺网页版URL
+            ths_web_urls = [
+                f"https://stock.10jqka.com.cn/{code}/",  # 同花顺个股页面
+                f"https://q.10jqka.com.cn/{code}/",      # 同花顺行情页面
+                f"https://stockpage.10jqka.com.cn/{code}/",  # 同花顺股票页面
+            ]
+            
+            for url in ths_web_urls:
+                webbrowser.open(url)
+                self.statusbar.config(text=f"正在打开同花顺网页版: {code}")
+                return
+        except:
+            pass
+        
+        # 方法4: 东方财富网页版（备选）
+        try:
+            dfcf_url = f"https://quote.eastmoney.com/{code}.html"
+            webbrowser.open(dfcf_url)
+            self.statusbar.config(text=f"正在打开东方财富网页版: {code} (同花顺备用)")
+            return
+        except:
+            pass
+        
+        # 方法5: 雪球网页版（备选）
+        try:
+            xueqiu_url = f"https://xueqiu.com/S/{code}"
+            webbrowser.open(xueqiu_url)
+            self.statusbar.config(text=f"正在打开雪球网页版: {code} (同花顺备用)")
+            return
+        except:
+            pass
+        
+        # 如果所有方法都失败，显示提示信息
+        messagebox.showinfo(
+            "打开同花顺", 
+            f"无法自动打开同花顺，请手动操作：\n\n"
+            f"股票代码: {code}\n"
+            f"基准区间: {start_str} 至 {end_str}\n\n"
+            f"操作建议：\n"
+            f"1. 手动打开同花顺软件\n"
+            f"2. 输入股票代码 {code}\n"
+            f"3. 在K线图中定位到 {start_str} 至 {end_str} 区间"
+        )
+        
+        # 将股票信息复制到剪贴板
+        try:
+            import pyperclip
+            pyperclip.copy(f"{code} {start_str} {end_str}")
+            self.statusbar.config(text=f"股票信息已复制到剪贴板: {code}")
+        except:
+            # 如果没有pyperclip，尝试使用tkinter剪贴板
+            try:
+                self.root.clipboard_clear()
+                self.root.clipboard_append(f"{code} {start_str} {end_str}")
+                self.statusbar.config(text=f"股票信息已复制到剪贴板: {code}")
+            except:
+                self.statusbar.config(text=f"请手动记录: 代码={code}, 区间={start_str}至{end_str}")
     
     def open_file(self):
         """打开文件对话框"""
@@ -1143,7 +1382,8 @@ class StockDataGUI:
                               f"日期数量: {date_count}\n"
                               f"基准区间: {first_date_fmt if dates else ''} 至 {last_date_fmt if dates else ''}\n"
                               f"扩展天数: {self.extend_days_var.get()}\n"
-                              f"显示焦点: 默认聚焦基准区间")
+                              f"显示焦点: 默认聚焦基准区间\n\n"
+                              f"点击'同花顺查看'按钮可在同花顺中查看此股票")
                 self.detail_label.config(text=detail_text)
                 
                 # 保存选中的信息
