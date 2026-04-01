@@ -16,6 +16,7 @@ import tkinter as tk
 from tkinter import simpledialog, messagebox
 import matplotlib.dates as mdates
 from matplotlib.ticker import MaxNLocator, FuncFormatter
+from matplotlib.patches import Rectangle
 
 print(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../../src"))
 sys.path.append(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../../src"))
@@ -25,29 +26,92 @@ from CalcTool.sdk.tdx_data_agent import TdxDataAgent
 
 # 全局变量
 current_display_df = None
+current_display_start = 0
 cursor = None
+fig = None
+ax1 = None
+ax2 = None
+date_to_patch_map = {}  # 映射日期到对应的蜡烛矩形
 
 def on_add(sel):
-    global current_display_df
+    global current_display_df, date_to_patch_map
     
     if current_display_df is None or len(current_display_df) == 0:
         return
     
-    idx = int(sel.target.index) if hasattr(sel.target, 'index') else 0
+    try:
+        # 获取被悬停的艺术家对象
+        artist = sel.artist
+        
+        # 查找这个艺术家对应的日期
+        target_date = None
+        for date_str, patch in date_to_patch_map.items():
+            if patch == artist:
+                target_date = pd.to_datetime(date_str, format='%Y%m%d')
+                break
+        
+        if target_date is None:
+            # 如果没有找到映射，尝试从x坐标推断
+            if hasattr(artist, 'get_x'):
+                x_val = artist.get_x()
+                if isinstance(x_val, (tuple, list, np.ndarray)):
+                    x_val = x_val[0] if len(x_val) > 0 else None
+                
+                if x_val is not None:
+                    try:
+                        # 将x坐标转换为日期
+                        date_num = float(x_val)
+                        target_date = mdates.num2date(date_num)
+                    except:
+                        pass
+        
+        if target_date is not None:
+            # 在显示数据中查找对应的行
+            closest_idx = None
+            min_diff = float('inf')
+            
+            for i, date in enumerate(current_display_df['Date']):
+                diff = abs((date - target_date).total_seconds())
+                if diff < min_diff:
+                    min_diff = diff
+                    closest_idx = i
+            
+            if closest_idx is not None and closest_idx < len(current_display_df):
+                row = current_display_df.iloc[closest_idx]
+                date_str = str(row['date'])
+                
+                # 计算涨跌幅
+                if closest_idx > 0:
+                    prev_close = current_display_df.iloc[closest_idx-1]['Close']
+                    change_pct = (row['Close'] - prev_close) / prev_close * 100
+                else:
+                    change_pct = 0
+                
+                # 显示实际价格
+                text = (f"日期: {date_str}\n"
+                        f"开盘: {row['Open']:.2f}\n"
+                        f"最高: {row['High']:.2f}\n"
+                        f"最低: {row['Low']:.2f}\n"
+                        f"收盘: {row['Close']:.2f}\n"
+                        f"涨跌: {change_pct:+.2f}%\n"
+                        f"成交量: {int(row['Volume']):,}")
+                
+                sel.annotation.set_text(text)
+                sel.annotation.get_bbox_patch().set(alpha=0.9, facecolor='lightyellow',
+                                                   edgecolor='black', linewidth=1)
+                return
     
-    if idx < len(current_display_df):
-        row = current_display_df.iloc[idx]
-        date_str = str(row['date'])
-        
-        # 显示实际价格
-        text = (f"日期: {date_str}\n"
-                f"开盘: {row['Open']:.2f}\n"
-                f"最高: {row['High']:.2f}\n"
-                f"最低: {row['Low']:.2f}\n"
-                f"收盘: {row['Close']:.2f}")
-        
+    except Exception as e:
+        pass
+    
+    # 如果上述方法都失败，显示简单信息
+    if len(current_display_df) > 0:
+        date_str = str(current_display_df.iloc[0]['date'])
+        last_date = str(current_display_df.iloc[-1]['date'])
+        text = f"显示 {len(current_display_df)} 个交易日\n日期范围: {date_str} 到 {last_date}"
         sel.annotation.set_text(text)
-        sel.annotation.get_bbox_patch().set(alpha=0.9, facecolor='lightyellow')
+        sel.annotation.get_bbox_patch().set(alpha=0.9, facecolor='lightblue',
+                                           edgecolor='blue', linewidth=1)
 
 def locate_to_date():
     """弹出对话框让用户输入日期，然后定位到该日期"""
@@ -93,7 +157,6 @@ def locate_to_date():
 
 def format_y_axis(value, pos):
     """格式化Y轴刻度，保留适当的小数位数"""
-    # 根据价格范围决定小数位数
     if value >= 1000:
         return f'{value:,.0f}'
     elif value >= 100:
@@ -107,34 +170,34 @@ def format_y_axis(value, pos):
 
 def refresh_chart(highlight_idx=None, is_locate=False, locate_date_str="", min_diff=0):
     """刷新图表显示"""
-    global current_display_df, fig, ax1, ax2, cursor
+    global current_display_df, current_display_start, fig, ax1, ax2, cursor, date_to_patch_map
     
     if not hasattr(refresh_chart, 'current_display_start'):
         refresh_chart.current_display_start = max(0, len(df) - 30)
     
     if highlight_idx is not None:
-        # 确保highlight_idx在有效范围内
         if highlight_idx < 0:
             highlight_idx = 0
         elif highlight_idx >= len(df):
             highlight_idx = len(df) - 1
         
-        # 计算显示范围，确保高亮日期在中间
         display_start = max(0, highlight_idx - 15)
         refresh_chart.current_display_start = display_start
     
-    display_start = refresh_chart.current_display_start
-    display_end = min(len(df), display_start + 30)
+    current_display_start = refresh_chart.current_display_start
+    display_end = min(len(df), current_display_start + 30)
     
-    if display_end - display_start < 10:  # 如果数据太少，显示更多
-        display_start = max(0, len(df) - 30)
+    if display_end - current_display_start < 10:
+        current_display_start = max(0, len(df) - 30)
         display_end = len(df)
+        refresh_chart.current_display_start = current_display_start
     
-    # 获取显示数据并保存到全局变量
-    current_display_df = df.iloc[display_start:display_end].copy()
+    # 获取显示数据
+    current_display_df = df.iloc[current_display_start:display_end].copy()
     
-    # 清空图形
+    # 清空图形和映射
     fig.clear()
+    date_to_patch_map.clear()
     
     # 设置样式
     rc_params = {
@@ -158,59 +221,108 @@ def refresh_chart(highlight_idx=None, is_locate=False, locate_date_str="", min_d
     
     ax1.set_title(title, fontsize=14, fontweight='bold', pad=20)
     
-    # 准备用于mplfinance的数据 - 使用原始价格
-    plot_data = current_display_df.set_index('Date')[['Open', 'High', 'Low', 'Close', 'Volume']].copy()
+    # 准备数据 - 使用整数索引确保日期连续
+    plot_dates = np.arange(len(current_display_df))
+    dates_list = current_display_df['Date'].tolist()
     
-    # 使用mplfinance绘制K线
-    ap = []
+    # 存储蜡烛宽度
+    candle_width = 0.6
+    
+    # 绘制每个蜡烛
+    patches = []
+    for i, (idx, row) in enumerate(current_display_df.iterrows()):
+        date = row['Date']
+        open_price = row['Open']
+        high = row['High']
+        low = row['Low']
+        close = row['Close']
+        date_str = str(row['date'])
+        
+        # 确定颜色
+        if close >= open_price:
+            color = 'red'
+            fill = True
+        else:
+            color = 'green'
+            fill = True
+        
+        # 绘制影线
+        ax1.plot([plot_dates[i], plot_dates[i]], [low, high], color=color, linewidth=1, zorder=2)
+        
+        # 绘制实体
+        rect = Rectangle(
+            (plot_dates[i] - candle_width/2, min(open_price, close)),
+            candle_width,
+            abs(close - open_price),
+            facecolor=color,
+            edgecolor=color,
+            fill=fill,
+            zorder=3
+        )
+        ax1.add_patch(rect)
+        
+        # 保存映射
+        date_to_patch_map[date_str] = rect
+        patches.append(rect)
+    
     # 添加均线
     for period in [5, 10, 20, 30, 60]:
-        if len(plot_data) >= period:
-            ma = plot_data['Close'].rolling(period).mean()
-            ap.append(mpf.make_addplot(ma, ax=ax1, color=f'C{period//10}', width=0.7))
+        if len(current_display_df) >= period:
+            # 计算移动平均
+            ma_values = []
+            for i in range(len(current_display_df)):
+                if i >= period - 1:
+                    ma = current_display_df['Close'].iloc[i-period+1:i+1].mean()
+                else:
+                    ma = np.nan
+                ma_values.append(ma)
+            
+            # 绘制均线
+            ma_line, = ax1.plot(plot_dates, ma_values, color=f'C{period//10}', 
+                              linewidth=1.5, label=f'MA{period}', alpha=0.7, zorder=1)
+            
+            # 将均线也添加到映射
+            for i, date_str in enumerate(current_display_df['date']):
+                date_to_patch_map[f"{date_str}_MA{period}"] = ma_line
     
-    # 使用charles样式
-    s = mpf.make_mpf_style(base_mpf_style='charles', rc=rc_params)
+    # 绘制成交量
+    volume_colors = []
+    volume_heights = []
+    for i, (idx, row) in enumerate(current_display_df.iterrows()):
+        if row['Close'] >= row['Open']:
+            volume_colors.append('red')
+        else:
+            volume_colors.append('green')
+        volume_heights.append(row['Volume'])
     
-    # 直接调用mplfinance绘图函数
-    mpf.plot(plot_data, 
-             type='candle',
-             ax=ax1,
-             volume=ax2,
-             addplot=ap,
-             style=s,
-             show_nontrading=False,
-             datetime_format='%Y-%m-%d',  # 设置日期格式
-             xrotation=45,  # 旋转日期标签
-             axtitle='',
-             volume_panel=1)
+    ax2.bar(plot_dates, volume_heights, width=candle_width*0.8, 
+           color=volume_colors, alpha=0.7, zorder=2)
     
-    # 格式化X轴，使用实际的日期
-    ax1.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
-    ax2.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
-    
-    # 控制显示的日期数量
-    n_dates = len(plot_data)
-    if n_dates > 20:
-        # 如果日期太多，间隔显示
-        step = max(1, n_dates // 10)
-        tick_positions = list(range(0, n_dates, step))
-        tick_labels = [plot_data.index[i].strftime('%m-%d') for i in tick_positions]
+    # 设置X轴刻度
+    n_ticks = min(10, len(plot_dates))
+    if n_ticks > 0:
+        tick_indices = np.linspace(0, len(plot_dates)-1, n_ticks, dtype=int)
+        tick_labels = []
+        for idx in tick_indices:
+            if idx < len(current_display_df):
+                date_obj = current_display_df.iloc[idx]['Date']
+                tick_labels.append(date_obj.strftime('%m-%d'))
         
-        ax1.set_xticks(tick_positions)
+        ax1.set_xticks(plot_dates[tick_indices])
         ax1.set_xticklabels(tick_labels, fontsize=9)
-        ax2.set_xticks(tick_positions)
+        ax2.set_xticks(plot_dates[tick_indices])
         ax2.set_xticklabels(tick_labels, fontsize=9)
     
     # 设置Y轴格式
     ax1.yaxis.set_major_formatter(FuncFormatter(format_y_axis))
-    
-    # 设置Y轴刻度密度
     ax1.yaxis.set_major_locator(MaxNLocator(prune='both', nbins=8))
     
     # 添加Y轴标签
     ax1.set_ylabel('价格(元)', fontsize=10)
     ax2.set_ylabel('成交量', fontsize=10)
+    
+    # 添加图例
+    ax1.legend(loc='upper left', fontsize=9)
     
     # 在图表最下方添加完整的日期说明
     if len(current_display_df) > 0:
@@ -221,35 +333,39 @@ def refresh_chart(highlight_idx=None, is_locate=False, locate_date_str="", min_d
                 bbox=dict(boxstyle="round,pad=0.3", facecolor="lightgray", alpha=0.8))
     
     # 添加高亮标记
-    if highlight_idx is not None and display_start <= highlight_idx < display_end:
-        loc_idx = highlight_idx - display_start
+    if highlight_idx is not None and current_display_start <= highlight_idx < display_end:
+        loc_idx = highlight_idx - current_display_start
         if 0 <= loc_idx < len(current_display_df):
-            # 获取实际的日期位置
             loc_date = current_display_df.iloc[loc_idx]['Date']
             loc_close = current_display_df.iloc[loc_idx]['Close']
             
-            # 在X轴上找到这个日期的位置
-            date_num = mdates.date2num(loc_date)
-            
             # 添加垂直线标记
-            ax1.axvline(x=date_num, color='red', alpha=0.7, linestyle='--', linewidth=2)
-            ax2.axvline(x=date_num, color='red', alpha=0.7, linestyle='--', linewidth=2)
+            ax1.axvline(x=plot_dates[loc_idx], color='red', alpha=0.7, 
+                       linestyle='--', linewidth=2, zorder=4)
+            ax2.axvline(x=plot_dates[loc_idx], color='red', alpha=0.7, 
+                       linestyle='--', linewidth=2, zorder=4)
             
             # 添加标记点
-            ax1.plot(date_num, loc_close, 'ro', markersize=10, alpha=0.7, zorder=5)
+            ax1.plot(plot_dates[loc_idx], loc_close, 'ro', markersize=10, 
+                    alpha=0.7, zorder=5)
             
             # 添加文本标签
             ylim = ax1.get_ylim()
             date_display = loc_date.strftime('%Y-%m-%d')
-            ax1.text(date_num, ylim[1] * 0.95, f'← {date_display}', 
+            ax1.text(plot_dates[loc_idx], ylim[1] * 0.95, f'← {date_display}', 
                     fontsize=11, color='red', va='top', ha='left', weight='bold',
-                    bbox=dict(boxstyle="round,pad=0.3", facecolor="yellow", alpha=0.9))
+                    bbox=dict(boxstyle="round,pad=0.3", facecolor="yellow", alpha=0.9),
+                    zorder=6)
+    
+    # 设置X轴范围
+    ax1.set_xlim(plot_dates[0] - 1, plot_dates[-1] + 1)
+    ax2.set_xlim(plot_dates[0] - 1, plot_dates[-1] + 1)
     
     # 调整布局
     plt.tight_layout(rect=[0, 0.05, 1, 0.95])
     
     # 重新连接鼠标悬停事件
-    cursor = mplcursors.cursor(ax1, hover=True)
+    cursor = mplcursors.cursor(patches, hover=True)
     cursor.connect("add", on_add)
     
     # 添加键盘提示
@@ -258,6 +374,7 @@ def refresh_chart(highlight_idx=None, is_locate=False, locate_date_str="", min_d
             bbox=dict(boxstyle="round,pad=0.5", facecolor="lightblue", alpha=0.8))
     
     plt.draw()
+    print(f"图表已刷新，显示 {len(current_display_df)} 个交易日的数据")
 
 def on_key_press(event):
     """键盘事件处理"""
@@ -273,7 +390,6 @@ def move_days(days):
     if not hasattr(refresh_chart, 'current_display_start'):
         refresh_chart.current_display_start = max(0, len(df) - 30)
     
-    # 获取当前高亮位置
     if hasattr(move_days, 'current_highlight_idx'):
         current_idx = move_days.current_highlight_idx
     else:
@@ -290,7 +406,6 @@ if __name__ == '__main__':
     stock_code = "601398" 
     print("正在加载数据...")
     
-    # 注意：当前是2026年4月1日，获取2026年3月到4月的数据
     try:
         df = agent.read_kdata_cache(stock_code, "20260301", "20260401")
         
@@ -308,17 +423,14 @@ if __name__ == '__main__':
         
         # 根据实际列名处理数据
         if 'r_open' in df.columns and 'r_high' in df.columns and 'r_low' in df.columns and 'r_close' in df.columns:
-            # 使用复权价格 - 这些已经是实际价格，不需要除以100
             df['Open'] = df['r_open']
             df['High'] = df['r_high']
             df['Low'] = df['r_low']
             df['Close'] = df['r_close']
             print("使用复权价格数据")
         elif 'open' in df.columns and 'high' in df.columns and 'low' in df.columns and 'close' in df.columns:
-            # 使用原始价格 - 这些是原始价格，可能是分，需要转换为元
-            # 检查价格范围，如果价格很大（>1000），可能是分，需要除以100
             sample_price = df['close'].iloc[0] if not df.empty else 0
-            if sample_price > 1000:  # 如果价格大于1000，可能是分
+            if sample_price > 1000:
                 print("检测到价格单位为分，转换为元")
                 df['Open'] = df['open'] / 100.0
                 df['High'] = df['high'] / 100.0
@@ -346,12 +458,10 @@ if __name__ == '__main__':
         
         # 处理缺失值
         for col in ['Open', 'High', 'Low', 'Close']:
-            # 检查是否全为NaN
             if df[col].isna().all():
                 print(f"警告：{col}列全为NaN，使用0填充")
                 df[col] = 0
             else:
-                # 手动向前填充NaN值
                 prev_value = None
                 for i in range(len(df)):
                     if pd.isna(df.at[i, col]):
@@ -360,9 +470,7 @@ if __name__ == '__main__':
                     else:
                         prev_value = df.at[i, col]
                 
-                # 如果还有NaN（比如第一行就是NaN），向后填充
                 if df[col].isna().any():
-                    # 找到第一个非NaN值
                     first_valid_idx = df[col].first_valid_index()
                     if first_valid_idx is not None:
                         first_valid_value = df.at[first_valid_idx, col]
@@ -371,11 +479,9 @@ if __name__ == '__main__':
         # 处理成交量
         if 'volume' in df.columns:
             df['Volume'] = pd.to_numeric(df['volume'], errors='coerce')
-            # 处理缺失值
             if df['Volume'].isna().all():
                 df['Volume'] = 100000
             else:
-                # 手动处理缺失值
                 prev_volume = None
                 for i in range(len(df)):
                     if pd.isna(df.at[i, 'Volume']):
