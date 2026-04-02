@@ -399,8 +399,11 @@ class StockKLineViewerGUI:
             # 等待窗口完全激活
             time.sleep(1)
             
+            # 补齐股票代码前面的零，确保是6位
+            padded_code = stock_code.zfill(6)
+            
             # 方法1：直接键盘输入（通达信支持直接输入）
-            pyautogui.typewrite(stock_code)
+            pyautogui.typewrite(padded_code)
             time.sleep(0.5)
             
             # 按回车确认
@@ -436,12 +439,13 @@ class StockKLineViewerGUI:
             # time.sleep(0.3)
             
             self.status_label.config(
-                text=f"已在通达信中定位到 {stock_code} 的日K线")
+                text=f"已在通达信中定位到 {padded_code} 的日K线")
             
         except Exception as e:
             messagebox.showerror("错误", f"通达信自动化失败: {e}")
+            padded_code = stock_code.zfill(6)
             self.status_label.config(
-                text=f"通达信自动化失败，请手动输入 {stock_code}")
+                text=f"通达信自动化失败，请手动输入 {padded_code}")
     
     def launch_tdx_directly(self, stock_code):
         """直接启动通达信程序"""
