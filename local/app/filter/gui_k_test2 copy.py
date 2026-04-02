@@ -1,698 +1,518 @@
-#!/usr/bin/python
-#-*-coding:UTF-8-*-
-
+import argparse
+import tkinter as tk
+from tkinter import ttk, messagebox, filedialog
+from datetime import datetime, timedelta
+import subprocess
+import threading
 import os
 import sys
-import argparse
-import matplotlib
-matplotlib.rcParams['font.sans-serif'] = ['Microsoft YaHei', 'SimHei', 'Arial Unicode MS']
-matplotlib.rcParams['axes.unicode_minus'] = False
-import matplotlib.pyplot as plt
-import mplfinance as mpf
-import pandas as pd
-import numpy as np
-import datetime
-import mplcursors
-import tkinter as tk
-from tkinter import simpledialog, messagebox
-import matplotlib.dates as mdates
-from matplotlib.ticker import MaxNLocator, FuncFormatter
-from matplotlib.patches import Rectangle
-import time
+from kline_viewer import KLineViewer
 
-print(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../../src"))
-sys.path.append(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../../src"))
-from CalcTool.sdk.tool_main import CalcLast1YearCount
-from CalcTool.sdk.logger import Logger
-from CalcTool.sdk.tdx_data_agent import TdxDataAgent
-
-# 全局变量
-current_display_df = None
-current_display_start = 0
-cursor = None
-fig = None
-ax1 = None
-ax2 = None
-date_to_patch_map = {}  # 映射日期到对应的蜡烛矩形
-current_highlight_idx = None  # 当前高亮索引
-current_annotation = None  # 当前显示的注释
-move_days_last_time = 0  # 记录上次按键时间，防止按键过快
-default_target_date = None  # 默认目标日期
-
-def show_annotation_for_date(date_str, x_pos, y_pos, ax, is_cursor=False):
-    """为指定日期显示注释"""
-    global current_annotation, current_display_df
+class StockDataParser:
+    """股票数据解析器"""
     
-    if current_display_df is None or date_str is None:
-        return
-    
-    # 如果已存在注释，先移除
-    if current_annotation is not None:
-        current_annotation.remove()
-        current_annotation = None
-    
-    try:
-        # 在显示数据中查找对应的行
-        row_idx = None
-        for i, date_val in enumerate(current_display_df['date']):
-            if str(date_val) == date_str:
-                row_idx = i
-                break
+    def __init__(self, file_path=None):
+        self.file_path = file_path
+        self.data = []
         
-        if row_idx is None:
-            return
+    def parse(self, file_path=None):
+        """解析文件数据"""
+        if file_path:
+            self.file_path = file_path
         
-        row = current_display_df.iloc[row_idx]
-        
-        # 计算涨跌幅
-        if row_idx > 0:
-            prev_close = current_display_df.iloc[row_idx-1]['Close']
-            change_pct = (row['Close'] - prev_close) / prev_close * 100
-        else:
-            change_pct = 0
-        
-        # 准备注释文本
-        text = (f"日期: {date_str}\n"
-                f"开盘: {row['Open']:.2f}\n"
-                f"最高: {row['High']:.2f}\n"
-                f"最低: {row['Low']:.2f}\n"
-                f"收盘: {row['Close']:.2f}\n"
-                f"涨跌: {change_pct:+.2f}%\n"
-                f"成交量: {int(row['Volume']):,}")
-        
-        # 如果是光标触发的，使用光标的位置
-        if is_cursor:
-            return text
-        
-        # 否则创建新注释
-        bbox_props = dict(boxstyle="round,pad=0.3", facecolor="lightyellow", 
-                         edgecolor="black", linewidth=1, alpha=0.9)
-        
-        # 调整注释位置，避免超出图形边界
-        y_lim = ax.get_ylim()
-        x_lim = ax.get_xlim()
-        
-        # 计算最佳位置
-        if y_pos > (y_lim[0] + y_lim[1]) / 2:
-            va = 'top'
-            y_offset = -0.05 * (y_lim[1] - y_lim[0])
-        else:
-            va = 'bottom'
-            y_offset = 0.05 * (y_lim[1] - y_lim[0])
-        
-        if x_pos > (x_lim[0] + x_lim[1]) / 2:
-            ha = 'right'
-            x_offset = -0.05 * (x_lim[1] - x_lim[0])
-        else:
-            ha = 'left'
-            x_offset = 0.05 * (x_lim[1] - x_lim[0])
-        
-        current_annotation = ax.text(x_pos + x_offset, y_pos + y_offset, text,
-                                    fontsize=9, va=va, ha=ha,
-                                    bbox=bbox_props, zorder=1000)
-        
-        plt.draw()
-        
-    except Exception as e:
-        print(f"显示注释出错: {e}")
-
-def on_add(sel):
-    """鼠标悬停事件处理"""
-    global current_display_df, date_to_patch_map
-    
-    if current_display_df is None or len(current_display_df) == 0:
-        return
-    
-    try:
-        # 获取被悬停的艺术家对象
-        artist = sel.artist
-        
-        # 查找这个艺术家对应的日期
-        target_date_str = None
-        for date_str, patch in date_to_patch_map.items():
-            if patch == artist:
-                # 只处理蜡烛矩形，忽略均线
-                if not date_str.endswith('_MA5') and not date_str.endswith('_MA10') and not date_str.endswith('_MA20') and not date_str.endswith('_MA30') and not date_str.endswith('_MA60'):
-                    target_date_str = date_str
-                    break
-        
-        if target_date_str is not None:
-            # 获取蜡烛的坐标
-            x_pos = artist.get_x() + artist.get_width() / 2
-            y_pos = artist.get_y() + artist.get_height() / 2
+        if not self.file_path or not os.path.exists(self.file_path):
+            return False, "请选择有效的文件"
             
-            # 获取注释文本
-            text = show_annotation_for_date(target_date_str, x_pos, y_pos, ax1, is_cursor=True)
-            if text:
-                sel.annotation.set_text(text)
-                sel.annotation.get_bbox_patch().set(alpha=0.9, facecolor='lightyellow',
-                                                   edgecolor='black', linewidth=1)
-            return
-    
-    except Exception as e:
-        pass
-    
-    # 如果上述方法都失败，显示简单信息
-    if len(current_display_df) > 0:
-        date_str = str(current_display_df.iloc[0]['date'])
-        last_date = str(current_display_df.iloc[-1]['date'])
-        text = f"显示 {len(current_display_df)} 个交易日\n日期范围: {date_str} 到 {last_date}"
-        sel.annotation.set_text(text)
-        sel.annotation.get_bbox_patch().set(alpha=0.9, facecolor='lightblue',
-                                           edgecolor='blue', linewidth=1)
-
-def locate_to_date():
-    """弹出对话框让用户输入日期，然后定位到该日期"""
-    root = tk.Tk()
-    root.withdraw()
-    
-    date_str = simpledialog.askstring("定位到日期", 
-                                     f"请输入日期 (YYYY-MM-DD 或 YYYYMMDD)\n日期范围: {start_date_str} 到 {end_date_str}",
-                                     parent=root)
-    
-    if date_str is None or date_str.strip() == "":
-        root.destroy()
-        return
-    
-    root.destroy()
-    
-    try:
-        # 尝试不同格式
         try:
-            target_date = pd.to_datetime(date_str)
-        except:
-            target_date = pd.to_datetime(date_str, format='%Y%m%d')
-        
-        # 查找最接近的日期
-        date_idx = None
-        min_diff = None
-        
-        for i, dt in enumerate(df['Date']):
-            diff = abs((dt - target_date).days)
-            if min_diff is None or diff < min_diff:
-                min_diff = diff
-                date_idx = i
-        
-        if date_idx is not None:
-            refresh_chart(highlight_idx=date_idx, is_locate=True, 
-                         locate_date_str=date_str, min_diff=min_diff)
-            # 显示该日期的注释
-            highlight_idx_in_display = date_idx - refresh_chart.current_display_start
-            if 0 <= highlight_idx_in_display < len(current_display_df):
-                date_str = str(current_display_df.iloc[highlight_idx_in_display]['date'])
-                x_pos = highlight_idx_in_display
-                y_pos = current_display_df.iloc[highlight_idx_in_display]['Close']
-                show_annotation_for_date(date_str, x_pos, y_pos, ax1)
+            self.data = []  # 清空之前的数据
             
-    except Exception as e:
-        root = tk.Tk()
-        root.withdraw()
-        messagebox.showerror("错误", f"日期格式错误: {e}\n请使用 YYYY-MM-DD 或 YYYYMMDD 格式")
-        root.destroy()
+            with open(self.file_path, 'r', encoding='utf-8') as f:
+                for line_num, line in enumerate(f, 1):
+                    line = line.strip()
+                    if not line:  # 跳过空行
+                        continue
+                    
+                    parts = line.split('\t')
+                    if len(parts) < 3:
+                        print(f"警告：第{line_num}行数据格式错误，跳过")
+                        continue
+                    
+                    # 解析基本数据
+                    timestamp_str = parts[0]
+                    stock_code = parts[1]
+                    focus_dates = parts[2:]
+                    
+                    # 为每个关注日期创建独立记录
+                    for focus_date in focus_dates:
+                        if focus_date:  # 确保关注日期不为空
+                            self.data.append({
+                                'timestamp': timestamp_str,
+                                'stock_code': stock_code,
+                                'focus_date': focus_date,
+                                'full_data': line
+                            })
+            
+            return True, f"解析完成，共处理 {len(self.data)} 条记录"
+            
+        except Exception as e:
+            return False, f"解析文件时出错: {e}"
 
-def format_y_axis(value, pos):
-    """格式化Y轴刻度，保留适当的小数位数"""
-    if value >= 1000:
-        return f'{value:,.0f}'
-    elif value >= 100:
-        return f'{value:.1f}'
-    elif value >= 10:
-        return f'{value:.2f}'
-    elif value >= 1:
-        return f'{value:.3f}'
-    else:
-        return f'{value:.4f}'
-
-def refresh_chart(highlight_idx=None, is_locate=False, locate_date_str="", min_diff=0):
-    """刷新图表显示"""
-    global current_display_df, current_display_start, fig, ax1, ax2, cursor, date_to_patch_map, current_highlight_idx
+class StockKLineViewerGUI:
+    """股票K线图查看器GUI（带文件选择功能）"""
     
-    if not hasattr(refresh_chart, 'current_display_start'):
-        refresh_chart.current_display_start = max(0, len(df) - 30)
-    
-    if highlight_idx is not None:
-        if highlight_idx < 0:
-            highlight_idx = 0
-        elif highlight_idx >= len(df):
-            highlight_idx = len(df) - 1
+    def __init__(self):
+        self.parser = StockDataParser()
+        self.data_records = []
+        self.current_file = None
+        self.kline_windows = []  # 保存K线图窗口引用
         
-        display_start = max(0, highlight_idx - 15)
-        refresh_chart.current_display_start = display_start
-    
-    current_display_start = refresh_chart.current_display_start
-    display_end = min(len(df), current_display_start + 30)
-    
-    if display_end - current_display_start < 10:
-        current_display_start = max(0, len(df) - 30)
-        display_end = len(df)
-        refresh_chart.current_display_start = current_display_start
-    
-    # 获取显示数据
-    current_display_df = df.iloc[current_display_start:display_end].copy()
-    current_highlight_idx = highlight_idx
-    
-    # 清空图形和映射
-    fig.clear()
-    date_to_patch_map.clear()
-    
-    # 移除之前的注释
-    global current_annotation
-    if current_annotation is not None:
-        current_annotation = None
-    
-    # 设置样式
-    rc_params = {
-        'font.sans-serif': ['Microsoft YaHei', 'SimHei'],
-        'axes.unicode_minus': False,
-    }
-    
-    # 创建子图
-    ax1 = plt.subplot2grid((6, 1), (0, 0), rowspan=4, fig=fig)
-    ax2 = plt.subplot2grid((6, 1), (4, 0), rowspan=2, sharex=ax1, fig=fig)
-    
-    # 设置标题
-    if is_locate:
-        if min_diff > 0:
-            actual_date = df.iloc[highlight_idx]['Date'].strftime('%Y-%m-%d')
-            title = f'{stock_code} 日K线 - 定位到: {actual_date} (输入: {locate_date_str}, 相差{min_diff}天)'
-        else:
-            title = f'{stock_code} 日K线 - 定位到: {locate_date_str}'
-    else:
-        title = f'{stock_code} 日K线 ({start_date_str} 至 {end_date_str})'
-    
-    ax1.set_title(title, fontsize=14, fontweight='bold', pad=20)
-    
-    # 准备数据 - 使用整数索引确保日期连续
-    plot_dates = np.arange(len(current_display_df))
-    dates_list = current_display_df['Date'].tolist()
-    
-    # 存储蜡烛宽度
-    candle_width = 0.6
-    
-    # 绘制每个蜡烛
-    patches = []
-    for i, (idx, row) in enumerate(current_display_df.iterrows()):
-        date = row['Date']
-        open_price = row['Open']
-        high = row['High']
-        low = row['Low']
-        close = row['Close']
-        date_str = str(row['date'])
+        # 创建主窗口
+        self.root = tk.Tk()
+        self.root.title("股票关注日期查看器")
+        self.root.geometry("1200x700")
         
-        # 确定颜色
-        if close >= open_price:
-            color = 'red'
-            fill = True
-        else:
-            color = 'green'
-            fill = True
+        # 绑定窗口关闭事件
+        self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
         
-        # 绘制影线
-        ax1.plot([plot_dates[i], plot_dates[i]], [low, high], color=color, linewidth=1, zorder=2)
+        # 设置样式
+        self.setup_styles()
         
-        # 绘制实体
-        rect = Rectangle(
-            (plot_dates[i] - candle_width/2, min(open_price, close)),
-            candle_width,
-            abs(close - open_price),
-            facecolor=color,
-            edgecolor=color,
-            fill=fill,
-            zorder=3
+        # 初始化UI
+        self.init_ui()
+    
+    def on_closing(self):
+        """关闭主窗口时清理资源"""
+        # 关闭所有K线图窗口
+        for window in self.kline_windows[:]:
+            try:
+                window.destroy()
+            except:
+                pass
+        self.root.destroy()
+        sys.exit(0)
+    
+    def setup_styles(self):
+        """设置UI样式"""
+        style = ttk.Style()
+        style.theme_use('clam')
+        
+        # 配置Treeview样式
+        style.configure("Treeview",
+                       background="#f0f0f0",
+                       foreground="black",
+                       rowheight=25,
+                       fieldbackground="#f0f0f0")
+        
+        style.configure("Treeview.Heading",
+                       background="#4a6fa5",
+                       foreground="white",
+                       font=('Arial', 10, 'bold'))
+        
+        style.map("Treeview",
+                 background=[('selected', '#3465a4')],
+                 foreground=[('selected', 'white')])
+    
+    def init_ui(self):
+        """初始化用户界面"""
+        # 主框架
+        main_frame = ttk.Frame(self.root, padding="10")
+        main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        
+        # 配置网格权重
+        self.root.columnconfigure(0, weight=1)
+        self.root.rowconfigure(0, weight=1)
+        main_frame.columnconfigure(0, weight=1)
+        main_frame.columnconfigure(1, weight=1)
+        main_frame.rowconfigure(2, weight=1)
+        
+        # 标题和文件选择区域
+        header_frame = ttk.Frame(main_frame)
+        header_frame.grid(row=0, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(0, 20))
+        
+        title_label = ttk.Label(header_frame, 
+                                text="股票关注日期查看器", 
+                                font=('Arial', 16, 'bold'),
+                                foreground="#2c3e50")
+        title_label.pack(side=tk.LEFT, padx=(0, 20))
+        
+        # 文件选择按钮
+        self.file_path_var = tk.StringVar()
+        self.file_path_var.set("未选择文件")
+        
+        file_button_frame = ttk.Frame(header_frame)
+        file_button_frame.pack(side=tk.LEFT, expand=True, fill=tk.X)
+        
+        select_file_btn = ttk.Button(file_button_frame, 
+                                    text="选择数据文件", 
+                                    command=self.select_file)
+        select_file_btn.pack(side=tk.LEFT, padx=(0, 10))
+        
+        self.file_label = ttk.Label(file_button_frame, 
+                                   textvariable=self.file_path_var,
+                                   foreground="#666666")
+        self.file_label.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        
+        # 控制面板
+        control_frame = ttk.LabelFrame(main_frame, text="控制面板", padding="10")
+        control_frame.grid(row=1, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), padx=(0, 5), pady=(0, 10))
+        
+        # 文件信息
+        info_frame = ttk.Frame(control_frame)
+        info_frame.pack(fill=tk.X, pady=(0, 10))
+        
+        ttk.Label(info_frame, text="当前文件:", font=('Arial', 9, 'bold')).pack(side=tk.LEFT)
+        self.file_info_label = ttk.Label(info_frame, text="未加载文件", foreground="#4a6fa5")
+        self.file_info_label.pack(side=tk.LEFT, padx=(5, 0))
+        
+        # 数据统计
+        stats_label = ttk.Label(control_frame, text="数据统计:", font=('Arial', 10, 'bold'))
+        stats_label.pack(anchor=tk.W, pady=(5, 0))
+        
+        self.stats_text = tk.Text(control_frame, height=10, width=40, 
+                                 font=('Courier', 9), bg='#f8f9fa')
+        self.stats_text.pack(fill=tk.BOTH, expand=True, pady=5)
+        
+        # 过滤选项
+        filter_label = ttk.Label(control_frame, text="数据过滤:", font=('Arial', 10, 'bold'))
+        filter_label.pack(anchor=tk.W, pady=(10, 5))
+        
+        filter_frame = ttk.Frame(control_frame)
+        filter_frame.pack(fill=tk.X, pady=5)
+        
+        ttk.Label(filter_frame, text="股票代码:").grid(row=0, column=0, sticky=tk.W, padx=(0, 5))
+        self.stock_filter_var = tk.StringVar()
+        stock_filter_entry = ttk.Entry(filter_frame, textvariable=self.stock_filter_var, width=15)
+        stock_filter_entry.grid(row=0, column=1, padx=(0, 10))
+        
+        ttk.Label(filter_frame, text="关注日期:").grid(row=0, column=2, sticky=tk.W, padx=(0, 5))
+        self.date_filter_var = tk.StringVar()
+        date_filter_entry = ttk.Entry(filter_frame, textvariable=self.date_filter_var, width=15)
+        date_filter_entry.grid(row=0, column=3, padx=(0, 0))
+        
+        # 按钮框架
+        button_frame = ttk.Frame(control_frame)
+        button_frame.pack(fill=tk.X, pady=10)
+        
+        filter_button = ttk.Button(button_frame, text="应用过滤", command=self.apply_filter)
+        filter_button.pack(side=tk.LEFT, padx=(0, 5))
+        
+        clear_filter_button = ttk.Button(button_frame, text="清除过滤", command=self.clear_filter)
+        clear_filter_button.pack(side=tk.LEFT, padx=(0, 5))
+        
+        refresh_button = ttk.Button(button_frame, text="重新加载", command=self.load_file)
+        refresh_button.pack(side=tk.LEFT)
+        
+        # 数据表格框架
+        table_frame = ttk.LabelFrame(main_frame, text="股票数据", padding="10")
+        table_frame.grid(row=1, column=1, rowspan=2, sticky=(tk.W, tk.E, tk.N, tk.S), padx=(5, 0))
+        table_frame.columnconfigure(0, weight=1)
+        table_frame.rowconfigure(0, weight=1)
+        
+        # 创建Treeview
+        columns = ('序号', '时间戳', '股票代码', '关注日期')
+        self.tree = ttk.Treeview(table_frame, columns=columns, show='headings', height=25)
+        
+        # 定义列
+        col_widths = [50, 180, 100, 100]
+        for idx, col in enumerate(columns):
+            self.tree.heading(col, text=col)
+            self.tree.column(col, width=col_widths[idx], anchor='center')
+        
+        # 添加滚动条
+        tree_scrollbar = ttk.Scrollbar(table_frame, orient=tk.VERTICAL, command=self.tree.yview)
+        self.tree.configure(yscrollcommand=tree_scrollbar.set)
+        
+        # 添加水平滚动条
+        tree_hscrollbar = ttk.Scrollbar(table_frame, orient=tk.HORIZONTAL, command=self.tree.xview)
+        self.tree.configure(xscrollcommand=tree_hscrollbar.set)
+        
+        # 网格布局
+        self.tree.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        tree_scrollbar.grid(row=0, column=1, sticky=(tk.N, tk.S))
+        tree_hscrollbar.grid(row=1, column=0, sticky=(tk.W, tk.E))
+        
+        # 绑定双击事件
+        self.tree.bind('<Double-Button-1>', self.on_row_double_click)
+        
+        # 绑定Enter键到过滤
+        stock_filter_entry.bind('<Return>', lambda e: self.apply_filter())
+        date_filter_entry.bind('<Return>', lambda e: self.apply_filter())
+        
+        # 状态栏
+        status_frame = ttk.Frame(main_frame)
+        status_frame.grid(row=2, column=0, sticky=(tk.W, tk.E), pady=(0, 0))
+        
+        self.status_label = ttk.Label(status_frame, text="请选择数据文件", relief=tk.SUNKEN, anchor=tk.W)
+        self.status_label.pack(fill=tk.X)
+        
+        # 操作提示
+        tip_frame = ttk.Frame(main_frame)
+        tip_frame.grid(row=3, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(10, 0))
+        
+        tip_text = "提示: 双击表格中的任意行可查看该股票的K线图"
+        tip_label = ttk.Label(tip_frame, text=tip_text, foreground="#666666", font=('Arial', 9))
+        tip_label.pack()
+        
+        # 初始化统计文本
+        self.update_stats_text("等待加载数据...")
+    
+    def select_file(self):
+        """选择数据文件"""
+        file_path = filedialog.askopenfilename(
+            title="选择数据文件",
+            filetypes=[
+                ("文本文件", "*.txt"),
+                ("所有文件", "*.*")
+            ]
         )
-        ax1.add_patch(rect)
         
-        # 保存映射
-        date_to_patch_map[date_str] = rect
-        patches.append(rect)
+        if file_path:
+            self.current_file = file_path
+            self.file_path_var.set(os.path.basename(file_path))
+            self.load_file()
     
-    # 添加均线
-    for period in [5, 10, 20, 30, 60]:
-        if len(current_display_df) >= period:
-            # 计算移动平均
-            ma_values = []
-            for i in range(len(current_display_df)):
-                if i >= period - 1:
-                    ma = current_display_df['Close'].iloc[i-period+1:i+1].mean()
-                else:
-                    ma = np.nan
-                ma_values.append(ma)
-            
-            # 绘制均线
-            ma_line, = ax1.plot(plot_dates, ma_values, color=f'C{period//10}', 
-                              linewidth=1.5, label=f'MA{period}', alpha=0.7, zorder=1)
-            
-            # 将均线也添加到映射
-            for i, date_str in enumerate(current_display_df['date']):
-                date_to_patch_map[f"{date_str}_MA{period}"] = ma_line
-    
-    # 绘制成交量
-    volume_colors = []
-    volume_heights = []
-    for i, (idx, row) in enumerate(current_display_df.iterrows()):
-        if row['Close'] >= row['Open']:
-            volume_colors.append('red')
+    def load_file(self):
+        """加载并显示数据"""
+        if not self.current_file or not os.path.exists(self.current_file):
+            messagebox.showwarning("警告", "请先选择有效的文件")
+            return
+        
+        self.status_label.config(text="正在解析数据...")
+        self.root.update()
+        
+        success, message = self.parser.parse(self.current_file)
+        
+        if success:
+            self.data_records = self.parser.data
+            self.display_data()
+            self.update_stats()
+            self.file_info_label.config(text=f"{os.path.basename(self.current_file)} ({len(self.data_records)} 条记录)")
+            self.status_label.config(text=f"数据加载完成: {len(self.data_records)} 条记录")
         else:
-            volume_colors.append('green')
-        volume_heights.append(row['Volume'])
+            self.status_label.config(text="数据加载失败")
+            messagebox.showerror("错误", message)
     
-    ax2.bar(plot_dates, volume_heights, width=candle_width*0.8, 
-           color=volume_colors, alpha=0.7, zorder=2)
+    def update_stats_text(self, text):
+        """更新统计文本显示"""
+        self.stats_text.delete(1.0, tk.END)
+        self.stats_text.insert(1.0, text)
+        self.stats_text.configure(state='disabled')
     
-    # 设置X轴刻度
-    n_ticks = min(10, len(plot_dates))
-    if n_ticks > 0:
-        tick_indices = np.linspace(0, len(plot_dates)-1, n_ticks, dtype=int)
-        tick_labels = []
-        for idx in tick_indices:
-            if idx < len(current_display_df):
-                date_obj = current_display_df.iloc[idx]['Date']
-                tick_labels.append(date_obj.strftime('%m-%d'))
+    def display_data(self, data=None):
+        """在表格中显示数据"""
+        if data is None:
+            data = self.data_records
         
-        ax1.set_xticks(plot_dates[tick_indices])
-        ax1.set_xticklabels(tick_labels, fontsize=9)
-        ax2.set_xticks(plot_dates[tick_indices])
-        ax2.set_xticklabels(tick_labels, fontsize=9)
+        # 清空现有数据
+        for item in self.tree.get_children():
+            self.tree.delete(item)
+        
+        # 添加新数据
+        for idx, record in enumerate(data, 1):
+            self.tree.insert('', 'end', values=(
+                idx,
+                record['timestamp'],
+                record['stock_code'],
+                record['focus_date']
+            ))
     
-    # 设置Y轴格式
-    ax1.yaxis.set_major_formatter(FuncFormatter(format_y_axis))
-    ax1.yaxis.set_major_locator(MaxNLocator(prune='both', nbins=8))
+    def update_stats(self):
+        """更新统计数据"""
+        if not self.data_records:
+            self.update_stats_text("无数据")
+            return
+        
+        # 计算统计信息
+        total_records = len(self.data_records)
+        unique_stocks = len(set(record['stock_code'] for record in self.data_records))
+        date_range = sorted(set(record['focus_date'] for record in self.data_records))
+        
+        if date_range:
+            min_date = min(date_range)
+            max_date = max(date_range)
+        else:
+            min_date = max_date = "N/A"
+        
+        # 统计每个日期的记录数
+        date_counts = {}
+        for record in self.data_records:
+            date = record['focus_date']
+            date_counts[date] = date_counts.get(date, 0) + 1
+        
+        # 显示统计信息
+        stats_text = f"=== 数据统计 ===\n"
+        stats_text += f"总记录数: {total_records}\n"
+        stats_text += f"唯一股票数: {unique_stocks}\n"
+        stats_text += f"日期范围: {min_date} 到 {max_date}\n"
+        stats_text += f"数据文件: {os.path.basename(self.current_file)}\n\n"
+        stats_text += "=== 日期分布 ===\n"
+        stats_text += "-" * 30 + "\n"
+        
+        # 只显示前20个日期的统计
+        sorted_dates = sorted(date_counts.items(), key=lambda x: x[0])
+        for date, count in sorted_dates[:20]:
+            stats_text += f"{date}: {count} 条记录\n"
+        
+        if len(date_counts) > 20:
+            stats_text += f"... 还有 {len(date_counts) - 20} 个日期\n"
+        
+        self.update_stats_text(stats_text)
     
-    # 添加Y轴标签
-    ax1.set_ylabel('价格(元)', fontsize=10)
-    ax2.set_ylabel('成交量', fontsize=10)
+    def apply_filter(self):
+        """应用过滤条件"""
+        if not self.data_records:
+            return
+        
+        stock_filter = self.stock_filter_var.get().strip()
+        date_filter = self.date_filter_var.get().strip()
+        
+        filtered_data = self.data_records
+        
+        if stock_filter:
+            filtered_data = [r for r in filtered_data if stock_filter in r['stock_code']]
+        
+        if date_filter:
+            filtered_data = [r for r in filtered_data if date_filter in r['focus_date']]
+        
+        self.display_data(filtered_data)
+        self.status_label.config(text=f"显示 {len(filtered_data)} 条记录 (已过滤)")
     
-    # 添加图例
-    ax1.legend(loc='upper left', fontsize=9)
+    def clear_filter(self):
+        """清除过滤条件"""
+        self.stock_filter_var.set("")
+        self.date_filter_var.set("")
+        self.display_data()
+        self.status_label.config(text=f"显示所有 {len(self.data_records)} 条记录")
     
-    # 在图表最下方添加完整的日期说明
-    if len(current_display_df) > 0:
-        first_date = current_display_df.iloc[0]['Date'].strftime('%Y-%m-%d')
-        last_date = current_display_df.iloc[-1]['Date'].strftime('%Y-%m-%d')
-        date_info = f"显示日期范围: {first_date} 至 {last_date} (共{len(current_display_df)}个交易日)"
-        fig.text(0.5, 0.01, date_info, ha='center', fontsize=10, 
-                bbox=dict(boxstyle="round,pad=0.3", facecolor="lightgray", alpha=0.8))
-    
-    # 添加高亮标记
-    highlight_idx_in_display = None
-    if highlight_idx is not None and current_display_start <= highlight_idx < display_end:
-        highlight_idx_in_display = highlight_idx - current_display_start
-        if 0 <= highlight_idx_in_display < len(current_display_df):
-            loc_date = current_display_df.iloc[highlight_idx_in_display]['Date']
-            loc_close = current_display_df.iloc[highlight_idx_in_display]['Close']
+    def on_row_double_click(self, event):
+        """双击行事件 - 在主线程中显示K线图"""
+        if not self.data_records:
+            messagebox.showinfo("提示", "请先加载数据文件")
+            return
             
-            # 添加垂直线标记
-            ax1.axvline(x=plot_dates[highlight_idx_in_display], color='red', alpha=0.7, 
-                       linestyle='--', linewidth=2, zorder=4)
-            ax2.axvline(x=plot_dates[highlight_idx_in_display], color='red', alpha=0.7, 
-                       linestyle='--', linewidth=2, zorder=4)
+        selection = self.tree.selection()
+        if not selection:
+            return
+        
+        # 获取选中行的数据
+        item = self.tree.item(selection[0])
+        values = item['values']
+        
+        if len(values) >= 4:
+            stock_code = str(values[2])  # 确保股票代码是字符串
+            focus_date_str = str(values[3])  # 确保关注日期是字符串
             
-            # 添加标记点
-            ax1.plot(plot_dates[highlight_idx_in_display], loc_close, 'ro', markersize=10, 
-                    alpha=0.7, zorder=5)
+            # 验证日期格式
+            if not (len(focus_date_str) == 8 and focus_date_str.isdigit()):
+                messagebox.showwarning("警告", f"日期格式错误: {focus_date_str}，应为8位数字格式(YYYYMMDD)")
+                return
             
-            # 添加文本标签
-            ylim = ax1.get_ylim()
-            date_display = loc_date.strftime('%Y-%m-%d')
-            ax1.text(plot_dates[highlight_idx_in_display], ylim[1] * 0.95, f'← {date_display}', 
-                    fontsize=11, color='red', va='top', ha='left', weight='bold',
-                    bbox=dict(boxstyle="round,pad=0.3", facecolor="yellow", alpha=0.9),
-                    zorder=6)
+            # 在主线程中打开K线图
+            self.open_kline_viewer(stock_code, focus_date_str)
     
-    # 设置X轴范围
-    ax1.set_xlim(plot_dates[0] - 1, plot_dates[-1] + 1)
-    ax2.set_xlim(plot_dates[0] - 1, plot_dates[-1] + 1)
-    
-    # 调整布局
-    plt.tight_layout(rect=[0, 0.05, 1, 0.95])
-    
-    # 重新连接鼠标悬停事件
-    if cursor is not None:
-        cursor.remove()
-    cursor = mplcursors.cursor(patches, hover=True)
-    cursor.connect("add", on_add)
-    
-    # 添加键盘提示
-    fig.text(0.5, 0.96, "提示：按 G 键输入日期定位，按 ← → 键逐日浏览", 
-            ha='center', fontsize=10, color='blue',
-            bbox=dict(boxstyle="round,pad=0.5", facecolor="lightblue", alpha=0.8))
-    
-    plt.draw()
-    print(f"图表已刷新，显示 {len(current_display_df)} 个交易日的数据")
-    
-    # 如果高亮了某一天，显示该日期的注释
-    if highlight_idx_in_display is not None:
-        date_str = str(current_display_df.iloc[highlight_idx_in_display]['date'])
-        x_pos = highlight_idx_in_display
-        y_pos = current_display_df.iloc[highlight_idx_in_display]['Close']
-        show_annotation_for_date(date_str, x_pos, y_pos, ax1)
-
-def on_key_press(event):
-    """键盘事件处理"""
-    global move_days_last_time
-    
-    # 防按键过快
-    current_time = time.time()
-    if current_time - move_days_last_time < 0.1:  # 至少间隔0.1秒
-        return
-    
-    if event.key == 'g' or event.key == 'G':
-        locate_to_date()
-    elif event.key == 'left':
-        move_days(-1)
-        move_days_last_time = current_time
-    elif event.key == 'right':
-        move_days(1)
-        move_days_last_time = current_time
-
-def move_days(days):
-    """移动指定天数"""
-    global current_highlight_idx
-    
-    if not hasattr(refresh_chart, 'current_display_start'):
-        refresh_chart.current_display_start = max(0, len(df) - 30)
-    
-    if current_highlight_idx is None:
-        current_highlight_idx = refresh_chart.current_display_start + 15
-    
-    new_idx = current_highlight_idx + days
-    if 0 <= new_idx < len(df):
-        current_highlight_idx = new_idx
-        refresh_chart(highlight_idx=new_idx)
-
-def find_date_index(target_date_str):
-    """查找指定日期在数据中的索引"""
-    try:
-        # 尝试不同格式解析日期
+    def open_kline_viewer(self, stock_code, focus_date_str):
+        """在主线程中打开K线图查看器"""
         try:
-            target_date = pd.to_datetime(target_date_str)
-        except:
-            target_date = pd.to_datetime(target_date_str, format='%Y%m%d')
-        
-        # 查找最接近的日期
-        date_idx = None
-        min_diff = None
-        
-        for i, dt in enumerate(df['Date']):
-            diff = abs((dt - target_date).days)
-            if min_diff is None or diff < min_diff:
-                min_diff = diff
-                date_idx = i
-        
-        if date_idx is not None:
-            if min_diff > 0:
-                print(f"提示: 输入的日期 {target_date_str} 没有对应数据，定位到最接近的日期 {df.iloc[date_idx]['Date'].strftime('%Y-%m-%d')} (相差{min_diff}天)")
+            # 计算日期范围（关注日期前后各15天）
+            focus_date_obj = datetime.strptime(focus_date_str, "%Y%m%d")
+            start_date = (focus_date_obj - timedelta(days=15)).strftime("%Y%m%d")
+            end_date = (focus_date_obj + timedelta(days=15)).strftime("%Y%m%d")
+            
+            # 更新状态
+            self.status_label.config(text=f"正在显示 {stock_code} 的K线图，关注日期: {focus_date_str}")
+            
+            # 创建Toplevel窗口
+            kline_window = tk.Toplevel(self.root)
+            kline_window.title(f"{stock_code} - K线图")
+            kline_window.geometry("1000x600")
+            
+            # 添加窗口到跟踪列表
+            self.kline_windows.append(kline_window)
+            
+            # 绑定窗口关闭事件
+            kline_window.protocol("WM_DELETE_WINDOW", 
+                                 lambda w=kline_window: self.close_kline_window(w))
+            
+            # 创建框架
+            frame = ttk.Frame(kline_window)
+            frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+            
+            # 添加标题
+            title = f"股票代码: {stock_code}  关注日期: {focus_date_str}  显示范围: {start_date} 至 {end_date}"
+            title_label = ttk.Label(frame, text=title, font=('Arial', 12, 'bold'))
+            title_label.pack(pady=(0, 10))
+            
+            # 添加状态标签
+            status_label = ttk.Label(frame, text="正在加载K线图...")
+            status_label.pack(pady=5)
+            
+            # 在单独的线程中获取K线图数据
+            def load_kline_data():
+                try:
+                    # 创建K线图查看器
+                    viewer = KLineViewer(
+                        stock_code=stock_code,
+                        start_date=start_date,
+                        end_date=end_date,
+                        target_date=focus_date_str
+                    )
+                    
+                    # 在主线程中更新UI
+                    kline_window.after(0, self.display_kline, viewer, frame, status_label, kline_window)
+                    
+                except Exception as e:
+                    kline_window.after(0, self.show_kline_error, kline_window, str(e))
+            
+            # 启动加载线程
+            thread = threading.Thread(target=load_kline_data, daemon=True)
+            thread.start()
+            
+        except ValueError as e:
+            messagebox.showerror("错误", f"日期格式错误: {e}")
+        except Exception as e:
+            messagebox.showerror("错误", f"无法打开K线图: {e}")
+    
+    def display_kline(self, viewer, frame, status_label, kline_window):
+        """显示K线图"""
+        try:
+            # 移除状态标签
+            status_label.pack_forget()
+            
+            # 获取K线图组件
+            kline_widget = viewer.get_widget()  # 假设KLineViewer有这个方法
+            
+            if kline_widget:
+                # 将K线图组件添加到窗口
+                kline_widget.pack(in_=frame, fill=tk.BOTH, expand=True)
             else:
-                print(f"成功定位到日期: {target_date_str}")
-            return date_idx
-        else:
-            return None
-    except Exception as e:
-        print(f"日期解析错误: {e}")
-        return None
+                # 如果没有get_widget方法，尝试直接显示
+                viewer.show()
+                
+        except Exception as e:
+            messagebox.showerror("错误", f"无法显示K线图: {e}")
+    
+    def show_kline_error(self, kline_window, error_msg):
+        """显示K线图错误"""
+        messagebox.showerror("错误", f"无法加载K线图: {error_msg}")
+        kline_window.destroy()
+        if kline_window in self.kline_windows:
+            self.kline_windows.remove(kline_window)
+    
+    def close_kline_window(self, window):
+        """关闭K线图窗口"""
+        if window in self.kline_windows:
+            self.kline_windows.remove(window)
+        window.destroy()
+    
+    def run(self):
+        """运行应用程序"""
+        self.root.mainloop()
+
+def main():
+    """主函数"""
+    # 创建并运行GUI应用程序
+    app = StockKLineViewerGUI()
+    app.run()
 
 if __name__ == '__main__':
-    # 解析命令行参数
-    parser = argparse.ArgumentParser(description='股票K线图查看器')
-    parser.add_argument('--stock', type=str, default='601398', help='股票代码')
-    parser.add_argument('--start', type=str, default='20260101', help='开始日期 (YYYYMMDD)')
-    parser.add_argument('--end', type=str, default='20260401', help='结束日期 (YYYYMMDD)')
-    parser.add_argument('--target', type=str, help='默认定位到的目标日期 (YYYYMMDD 或 YYYY-MM-DD)')
-    
-    args = parser.parse_args()
-    
-    stock_code = args.stock
-    start_date = args.start
-    end_date = args.end
-    target_date_str = '20260201' #args.target
-    
-    # 加载数据
-    agent = TdxDataAgent()
-    print(f"正在加载 {stock_code} 的数据，日期范围: {start_date} 到 {end_date}...")
-    
-    try:
-        df = agent.read_kdata_cache(stock_code, start_date, end_date)
-        
-        if df is None or df.empty:
-            print("错误：无法获取数据，程序退出")
-            sys.exit(1)
-            
-        print(f"获取数据成功，共{len(df)}条记录")
-        
-        # 处理数据格式
-        print("处理数据格式...")
-        
-        # 检查数据列
-        print("数据列名:", df.columns.tolist())
-        
-        # 根据实际列名处理数据
-        if 'r_open' in df.columns and 'r_high' in df.columns and 'r_low' in df.columns and 'r_close' in df.columns:
-            df['Open'] = df['r_open']
-            df['High'] = df['r_high']
-            df['Low'] = df['r_low']
-            df['Close'] = df['r_close']
-            print("使用复权价格数据")
-        elif 'open' in df.columns and 'high' in df.columns and 'low' in df.columns and 'close' in df.columns:
-            sample_price = df['close'].iloc[0] if not df.empty else 0
-            if sample_price > 1000:
-                print("检测到价格单位为分，转换为元")
-                df['Open'] = df['open'] / 100.0
-                df['High'] = df['high'] / 100.0
-                df['Low'] = df['low'] / 100.0
-                df['Close'] = df['close'] / 100.0
-            else:
-                print("使用原始价格数据")
-                df['Open'] = df['open']
-                df['High'] = df['high']
-                df['Low'] = df['low']
-                df['Close'] = df['close']
-        else:
-            print("错误：数据中未找到价格列")
-            print("可用列:", df.columns.tolist())
-            sys.exit(1)
-        
-        # 确保价格是数值类型
-        for col in ['Open', 'High', 'Low', 'Close']:
-            df[col] = pd.to_numeric(df[col], errors='coerce')
-        
-        # 检查是否有有效的价格数据
-        if df[['Open', 'High', 'Low', 'Close']].isna().all().all():
-            print("错误：所有价格数据均为NaN")
-            sys.exit(1)
-        
-        # 处理缺失值
-        for col in ['Open', 'High', 'Low', 'Close']:
-            if df[col].isna().all():
-                print(f"警告：{col}列全为NaN，使用0填充")
-                df[col] = 0
-            else:
-                prev_value = None
-                for i in range(len(df)):
-                    if pd.isna(df.at[i, col]):
-                        if prev_value is not None:
-                            df.at[i, col] = prev_value
-                    else:
-                        prev_value = df.at[i, col]
-                
-                if df[col].isna().any():
-                    first_valid_idx = df[col].first_valid_index()
-                    if first_valid_idx is not None:
-                        first_valid_value = df.at[first_valid_idx, col]
-                        df[col] = df[col].fillna(first_valid_value)
-        
-        # 处理成交量
-        if 'volume' in df.columns:
-            df['Volume'] = pd.to_numeric(df['volume'], errors='coerce')
-            if df['Volume'].isna().all():
-                df['Volume'] = 100000
-            else:
-                prev_volume = None
-                for i in range(len(df)):
-                    if pd.isna(df.at[i, 'Volume']):
-                        if prev_volume is not None:
-                            df.at[i, 'Volume'] = prev_volume
-                    else:
-                        prev_volume = df.at[i, 'Volume']
-                
-                if df['Volume'].isna().any():
-                    df['Volume'] = df['Volume'].fillna(100000)
-        else:
-            print("警告：未找到成交量列，使用默认值")
-            df['Volume'] = 100000
-        
-        # 处理日期
-        if 'date' in df.columns:
-            df['Date'] = pd.to_datetime(df['date'], format='%Y%m%d', errors='coerce')
-        else:
-            print("错误：未找到日期列")
-            sys.exit(1)
-        
-        # 删除无效日期
-        original_len = len(df)
-        df = df.dropna(subset=['Date'])
-        if len(df) < original_len:
-            print(f"警告：删除了{original_len - len(df)}条无效日期记录")
-        
-        df = df.sort_values('Date')
-        
-        if len(df) == 0:
-            print("错误：没有有效的日期数据")
-            sys.exit(1)
-        
-        # 获取日期范围字符串
-        start_date_str = str(df['date'].iloc[0])
-        end_date_str = str(df['date'].iloc[-1])
-        
-        # 打印价格范围
-        price_min = df['Close'].min()
-        price_max = df['Close'].max()
-        print(f"数据日期范围: {start_date_str} 到 {end_date_str}")
-        print(f"价格范围: {price_min:.2f} 到 {price_max:.2f}")
-        print(f"数据示例（前5行）:")
-        print(df[['date', 'Open', 'High', 'Low', 'Close']].head())
-        
-    except Exception as e:
-        print(f"数据加载或处理出错: {e}")
-        import traceback
-        traceback.print_exc()
-        sys.exit(1)
-    
-    # 创建图形
-    fig = plt.figure(figsize=(14, 9))
-    
-    # 确定初始高亮索引
-    initial_highlight_idx = None
-    
-    if target_date_str:
-        # 如果指定了目标日期，查找该日期的索引
-        initial_highlight_idx = find_date_index(target_date_str)
-        if initial_highlight_idx is not None:
-            print(f"图表将默认定位到: {df.iloc[initial_highlight_idx]['Date'].strftime('%Y-%m-%d')}")
-        else:
-            print(f"警告: 无法定位到日期 {target_date_str}，将显示最近的数据")
-            initial_highlight_idx = len(df) - 1
-    else:
-        # 默认显示最近的数据
-        initial_highlight_idx = len(df) - 1
-        print(f"图表默认显示最近的数据: {df.iloc[initial_highlight_idx]['Date'].strftime('%Y-%m-%d')}")
-    
-    # 初始绘制
-    refresh_chart(highlight_idx=initial_highlight_idx, is_locate=bool(target_date_str), 
-                 locate_date_str=target_date_str or "", min_diff=0)
-    
-    # 连接键盘事件
-    fig.canvas.mpl_connect('key_press_event', on_key_press)
-    
-    # 显示图表
-    print("\n" + "="*60)
-    print("使用说明:")
-    print("1. 按 G 键: 输入日期定位")
-    print("2. 按 ← 键: 向前一天")
-    print("3. 按 → 键: 向后一天")
-    print("4. 鼠标悬停: 查看详细信息")
-    print("="*60)
-    
-    if target_date_str:
-        print(f"\n当前定位: {df.iloc[initial_highlight_idx]['Date'].strftime('%Y-%m-%d')}")
-    
-    plt.show()
+    main()
