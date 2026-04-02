@@ -4,6 +4,7 @@
 import os
 import sys
 import argparse
+import re
 import matplotlib
 matplotlib.rcParams['font.sans-serif'] = ['Microsoft YaHei', 'SimHei', 'Arial Unicode MS']
 matplotlib.rcParams['axes.unicode_minus'] = False
@@ -26,6 +27,20 @@ sys.path.append(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../..
 from CalcTool.sdk.tool_main import CalcLast1YearCount
 from CalcTool.sdk.logger import Logger
 from CalcTool.sdk.tdx_data_agent import TdxDataAgent
+
+def normalize_stock_code(stock_code):
+    """标准化股票代码格式"""
+    if not stock_code:
+        return stock_code
+    
+    # 移除所有非数字字符
+    code = re.sub(r'[^0-9]', '', str(stock_code))
+    
+    # 补齐到6位
+    if code.isdigit():
+        return code.zfill(6)
+    
+    return stock_code
 
 class KLineViewerEmbeddable:
     """可嵌入的K线图表查看器类"""
@@ -80,9 +95,8 @@ class KLineViewerEmbeddable:
         # 状态相关
         self.move_days_last_time = 0
         
-        # 如果是独立窗口，创建窗口
-        if not is_embedded and parent is None:
-            self.create_window()
+        # 显示用的股票代码
+        self.display_stock_code = stock_code
     
     def create_window(self):
         """创建独立窗口"""
@@ -114,7 +128,7 @@ class KLineViewerEmbeddable:
         left_frame.pack(side=tk.LEFT, padx=10)
         
         # 股票信息
-        tk.Label(left_frame, text=f"股票代码: {self.stock_code}", 
+        tk.Label(left_frame, text=f"股票代码: {self.display_stock_code}", 
                 bg="#f0f0f0", font=('Arial', 10, 'bold')).pack(side=tk.LEFT, padx=(0, 20))
         
         # 日期范围
@@ -412,11 +426,11 @@ class KLineViewerEmbeddable:
         if is_locate:
             if min_diff > 0:
                 actual_date = self.df.iloc[highlight_idx]['Date'].strftime('%Y-%m-%d')
-                title = f'{self.stock_code} 日K线 - 定位到: {actual_date} (输入: {locate_date_str}, 相差{min_diff}天)'
+                title = f'{self.display_stock_code} 日K线 - 定位到: {actual_date} (输入: {locate_date_str}, 相差{min_diff}天)'
             else:
-                title = f'{self.stock_code} 日K线 - 定位到: {locate_date_str}'
+                title = f'{self.display_stock_code} 日K线 - 定位到: {locate_date_str}'
         else:
-            title = f'{self.stock_code} 日K线 ({self.start_date_str} 至 {self.end_date_str})'
+            title = f'{self.display_stock_code} 日K线 ({self.start_date_str} 至 {self.end_date_str})'
         
         self.ax1.set_title(title, fontsize=14, fontweight='bold', pad=20)
         
@@ -654,13 +668,65 @@ class KLineViewerEmbeddable:
     def load_data(self):
         """加载股票数据"""
         agent = TdxDataAgent()
-        print(f"正在加载 {self.stock_code} 的数据，日期范围: {self.start_date} 到 {self.end_date}...")
+        
+        # 标准化股票代码
+        original_code = self.stock_code
+        normalized_code = normalize_stock_code(original_code)
+        
+        print(f"正在加载 {original_code} (标准化: {normalized_code}) 的数据，日期范围: {self.start_date} 到 {self.end_date}...")
+        
+        # 保存显示用的股票代码
+        self.display_stock_code = original_code
         
         try:
-            self.df = agent.read_kdata_cache(self.stock_code, self.start_date, self.end_date)
+            # 尝试不同的代码格式
+            code_variants = []
+            
+            # 1. 标准化后的6位代码
+            if normalized_code != original_code:
+                code_variants.append(normalized_code)
+            
+            # 2. 原始代码
+            code_variants.append(original_code)
+            
+            # 3. 如果原始代码是数字，尝试不同长度
+            if original_code.isdigit():
+                # 补齐到6位
+                code_variants.append(original_code.zfill(6))
+                # 如果是5位，可能去掉开头的0
+                if len(original_code) == 5:
+                    code_variants.append(original_code.lstrip('0').zfill(6))
+            
+            # 移除重复
+            code_variants = list(dict.fromkeys(code_variants))
+            
+            print(f"将尝试以下股票代码格式: {code_variants}")
+            
+            # 尝试不同的代码格式
+            last_error = None
+            for code_variant in code_variants:
+                try:
+                    print(f"尝试代码: {code_variant}")
+                    self.df = agent.read_kdata_cache(code_variant, self.start_date, self.end_date)
+                    
+                    if self.df is not None and not self.df.empty:
+                        print(f"✓ 代码 {code_variant} 成功获取 {len(self.df)} 条数据")
+                        self.stock_code = code_variant  # 更新为成功的代码
+                        self.display_stock_code = f"{original_code} ({code_variant})"  # 显示信息
+                        break
+                    else:
+                        print(f"✗ 代码 {code_variant} 无数据")
+                except Exception as e:
+                    last_error = e
+                    print(f"✗ 代码 {code_variant} 失败: {e}")
             
             if self.df is None or self.df.empty:
-                print("错误：无法获取数据")
+                error_msg = f"无法获取股票数据\n"
+                error_msg += f"原始代码: {original_code}\n"
+                error_msg += f"尝试的格式: {', '.join(code_variants)}\n"
+                if last_error:
+                    error_msg += f"最后错误: {last_error}"
+                print(error_msg)
                 return False
                 
             print(f"获取数据成功，共{len(self.df)}条记录")
@@ -793,6 +859,10 @@ class KLineViewerEmbeddable:
                 self.window.destroy()
             return
         
+        # 如果还没有创建窗口，创建它
+        if self.window is None:
+            self.create_window()
+        
         # 确定初始高亮索引
         initial_highlight_idx = None
         
@@ -818,7 +888,7 @@ class KLineViewerEmbeddable:
             self.window.mainloop()
     
     def show_embedded(self, parent_frame=None):
-        """显示嵌入的图表"""
+        """显示嵌入的图表 - 这是关键的方法！"""
         if parent_frame:
             self.embed_in_frame(parent_frame)
         

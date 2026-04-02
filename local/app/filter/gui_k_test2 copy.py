@@ -2,7 +2,6 @@ import argparse
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 from datetime import datetime, timedelta
-import threading
 import os
 import sys
 
@@ -66,7 +65,6 @@ class StockKLineViewerGUI:
         self.data_records = []
         self.current_file = None
         self.current_kline_viewer = None
-        self.kline_window = None
         
         # 创建主窗口
         self.root = tk.Tk()
@@ -216,7 +214,7 @@ class StockKLineViewerGUI:
         self.tree = ttk.Treeview(table_frame, columns=columns, show='headings', height=15)
         
         # 定义列
-        col_widths = [50, 150, 80, 100]
+        col_widths = [50, 150, 100, 100]
         for idx, col in enumerate(columns):
             self.tree.heading(col, text=col)
             self.tree.column(col, width=col_widths[idx], anchor='center')
@@ -358,7 +356,8 @@ class StockKLineViewerGUI:
         stats_text += f"总记录数: {total_records}\n"
         stats_text += f"唯一股票数: {unique_stocks}\n"
         stats_text += f"日期范围: {min_date} 到 {max_date}\n"
-        stats_text += f"数据文件: {os.path.basename(self.current_file)}\n\n"
+        stats_text += f"数据文件: {os.path.basename(self.current_file)}\n"
+        
         stats_text += "=== 日期分布 ===\n"
         stats_text += "-" * 30 + "\n"
         
@@ -450,7 +449,7 @@ class StockKLineViewerGUI:
                 is_embedded=True
             )
             
-            # 显示嵌入的K线图
+            # 显示嵌入的K线图 - 确保调用正确的方法
             success = self.current_kline_viewer.show_embedded(self.kline_container)
             
             if success:
