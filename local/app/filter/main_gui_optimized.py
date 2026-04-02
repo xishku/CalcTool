@@ -412,8 +412,8 @@ class StockKLineViewerGUI:
             time.sleep(1)
             
             # 如果没反应，尝试用快捷键
-            pyautogui.press('esc')  # 先取消
-            time.sleep(0.2)
+            # pyautogui.press('esc')  # 先取消
+            # time.sleep(0.2)
             
             # # 方法2：使用数字键盘输入
             # pyautogui.press('num0')  # 确保在数字状态
@@ -558,7 +558,7 @@ class StockKLineViewerGUI:
         try:
             # 同花顺常见安装路径
             ths_paths = [
-                r"C:\同花顺\hexin.exe",  # 标准安装
+                r"C:\同花顺软件\同花顺\hexinlauncher.exe",  # 标准安装
                 r"D:\同花顺\hexin.exe",  # D盘
                 r"C:\Program Files\同花顺\hexin.exe",  # 默认安装
                 r"C:\ths\hexin.exe",     # 简化路径
