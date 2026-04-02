@@ -426,10 +426,10 @@ class StockKLineViewerGUI:
     def show_kline(self, stock_code, focus_date_str):
         """显示K线图"""
         try:
-            # 计算日期范围（关注日期前后各15天）
+            # 计算日期范围（关注日期前后各25天）
             focus_date_obj = datetime.strptime(focus_date_str, "%Y%m%d")
-            start_date = (focus_date_obj - timedelta(days=15)).strftime("%Y%m%d")
-            end_date = (focus_date_obj + timedelta(days=15)).strftime("%Y%m%d")
+            start_date = (focus_date_obj - timedelta(days=25)).strftime("%Y%m%d")
+            end_date = (focus_date_obj + timedelta(days=25)).strftime("%Y%m%d")
             
             # 更新状态
             self.status_label.config(text=f"正在加载 {stock_code} 的K线图，关注日期: {focus_date_str}")
