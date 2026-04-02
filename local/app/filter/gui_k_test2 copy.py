@@ -2,11 +2,12 @@ import argparse
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 from datetime import datetime, timedelta
-import subprocess
 import threading
 import os
 import sys
-from kline_viewer import KLineViewer
+
+# 导入修改后的KLineViewer
+from kline_viewer_embeddable import KLineViewerEmbeddable
 
 class StockDataParser:
     """股票数据解析器"""
@@ -64,12 +65,13 @@ class StockKLineViewerGUI:
         self.parser = StockDataParser()
         self.data_records = []
         self.current_file = None
-        self.kline_windows = []  # 保存K线图窗口引用
+        self.current_kline_viewer = None
+        self.kline_window = None
         
         # 创建主窗口
         self.root = tk.Tk()
         self.root.title("股票关注日期查看器")
-        self.root.geometry("1200x700")
+        self.root.geometry("1400x800")
         
         # 绑定窗口关闭事件
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
@@ -82,10 +84,9 @@ class StockKLineViewerGUI:
     
     def on_closing(self):
         """关闭主窗口时清理资源"""
-        # 关闭所有K线图窗口
-        for window in self.kline_windows[:]:
+        if self.current_kline_viewer:
             try:
-                window.destroy()
+                self.current_kline_viewer.close()
             except:
                 pass
         self.root.destroy()
@@ -115,19 +116,19 @@ class StockKLineViewerGUI:
     def init_ui(self):
         """初始化用户界面"""
         # 主框架
-        main_frame = ttk.Frame(self.root, padding="10")
+        main_frame = ttk.Frame(self.root, padding="5")
         main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
         
         # 配置网格权重
         self.root.columnconfigure(0, weight=1)
         self.root.rowconfigure(0, weight=1)
-        main_frame.columnconfigure(0, weight=1)
-        main_frame.columnconfigure(1, weight=1)
-        main_frame.rowconfigure(2, weight=1)
+        main_frame.columnconfigure(0, weight=1)  # 左侧
+        main_frame.columnconfigure(1, weight=2)  # 右侧K线图
+        main_frame.rowconfigure(1, weight=1)
         
         # 标题和文件选择区域
         header_frame = ttk.Frame(main_frame)
-        header_frame.grid(row=0, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(0, 20))
+        header_frame.grid(row=0, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(0, 10))
         
         title_label = ttk.Label(header_frame, 
                                 text="股票关注日期查看器", 
@@ -152,32 +153,34 @@ class StockKLineViewerGUI:
                                    foreground="#666666")
         self.file_label.pack(side=tk.LEFT, fill=tk.X, expand=True)
         
-        # 控制面板
-        control_frame = ttk.LabelFrame(main_frame, text="控制面板", padding="10")
-        control_frame.grid(row=1, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), padx=(0, 5), pady=(0, 10))
+        # 左侧控制面板
+        left_frame = ttk.LabelFrame(main_frame, text="数据和控制面板", padding="10")
+        left_frame.grid(row=1, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), padx=(0, 5))
+        left_frame.columnconfigure(0, weight=1)
+        left_frame.rowconfigure(2, weight=1)  # 表格区域
         
         # 文件信息
-        info_frame = ttk.Frame(control_frame)
-        info_frame.pack(fill=tk.X, pady=(0, 10))
+        info_frame = ttk.Frame(left_frame)
+        info_frame.grid(row=0, column=0, sticky=(tk.W, tk.E), pady=(0, 10))
         
         ttk.Label(info_frame, text="当前文件:", font=('Arial', 9, 'bold')).pack(side=tk.LEFT)
         self.file_info_label = ttk.Label(info_frame, text="未加载文件", foreground="#4a6fa5")
         self.file_info_label.pack(side=tk.LEFT, padx=(5, 0))
         
         # 数据统计
-        stats_label = ttk.Label(control_frame, text="数据统计:", font=('Arial', 10, 'bold'))
-        stats_label.pack(anchor=tk.W, pady=(5, 0))
+        stats_label = ttk.Label(left_frame, text="数据统计:", font=('Arial', 10, 'bold'))
+        stats_label.grid(row=1, column=0, sticky=tk.W, pady=(5, 0))
         
-        self.stats_text = tk.Text(control_frame, height=10, width=40, 
+        self.stats_text = tk.Text(left_frame, height=8, width=40, 
                                  font=('Courier', 9), bg='#f8f9fa')
-        self.stats_text.pack(fill=tk.BOTH, expand=True, pady=5)
+        self.stats_text.grid(row=2, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), pady=5)
         
         # 过滤选项
-        filter_label = ttk.Label(control_frame, text="数据过滤:", font=('Arial', 10, 'bold'))
-        filter_label.pack(anchor=tk.W, pady=(10, 5))
+        filter_label = ttk.Label(left_frame, text="数据过滤:", font=('Arial', 10, 'bold'))
+        filter_label.grid(row=3, column=0, sticky=tk.W, pady=(10, 5))
         
-        filter_frame = ttk.Frame(control_frame)
-        filter_frame.pack(fill=tk.X, pady=5)
+        filter_frame = ttk.Frame(left_frame)
+        filter_frame.grid(row=4, column=0, sticky=(tk.W, tk.E), pady=5)
         
         ttk.Label(filter_frame, text="股票代码:").grid(row=0, column=0, sticky=tk.W, padx=(0, 5))
         self.stock_filter_var = tk.StringVar()
@@ -190,8 +193,8 @@ class StockKLineViewerGUI:
         date_filter_entry.grid(row=0, column=3, padx=(0, 0))
         
         # 按钮框架
-        button_frame = ttk.Frame(control_frame)
-        button_frame.pack(fill=tk.X, pady=10)
+        button_frame = ttk.Frame(left_frame)
+        button_frame.grid(row=5, column=0, sticky=(tk.W, tk.E), pady=10)
         
         filter_button = ttk.Button(button_frame, text="应用过滤", command=self.apply_filter)
         filter_button.pack(side=tk.LEFT, padx=(0, 5))
@@ -203,17 +206,17 @@ class StockKLineViewerGUI:
         refresh_button.pack(side=tk.LEFT)
         
         # 数据表格框架
-        table_frame = ttk.LabelFrame(main_frame, text="股票数据", padding="10")
-        table_frame.grid(row=1, column=1, rowspan=2, sticky=(tk.W, tk.E, tk.N, tk.S), padx=(5, 0))
+        table_frame = ttk.LabelFrame(left_frame, text="股票数据", padding="5")
+        table_frame.grid(row=6, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(10, 0))
         table_frame.columnconfigure(0, weight=1)
         table_frame.rowconfigure(0, weight=1)
         
         # 创建Treeview
         columns = ('序号', '时间戳', '股票代码', '关注日期')
-        self.tree = ttk.Treeview(table_frame, columns=columns, show='headings', height=25)
+        self.tree = ttk.Treeview(table_frame, columns=columns, show='headings', height=15)
         
         # 定义列
-        col_widths = [50, 180, 100, 100]
+        col_widths = [50, 150, 80, 100]
         for idx, col in enumerate(columns):
             self.tree.heading(col, text=col)
             self.tree.column(col, width=col_widths[idx], anchor='center')
@@ -238,20 +241,31 @@ class StockKLineViewerGUI:
         stock_filter_entry.bind('<Return>', lambda e: self.apply_filter())
         date_filter_entry.bind('<Return>', lambda e: self.apply_filter())
         
+        # 右侧K线图区域
+        right_frame = ttk.LabelFrame(main_frame, text="K线图", padding="5")
+        right_frame.grid(row=1, column=1, sticky=(tk.W, tk.E, tk.N, tk.S))
+        right_frame.columnconfigure(0, weight=1)
+        right_frame.rowconfigure(0, weight=1)
+        
+        # 创建K线图容器框架
+        self.kline_container = ttk.Frame(right_frame)
+        self.kline_container.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), padx=5, pady=5)
+        self.kline_container.columnconfigure(0, weight=1)
+        self.kline_container.rowconfigure(0, weight=1)
+        
+        # 初始提示
+        tip_label = ttk.Label(self.kline_container, 
+                             text="双击左侧表格中的任意行查看K线图", 
+                             font=('Arial', 12),
+                             foreground="#666666")
+        tip_label.place(relx=0.5, rely=0.5, anchor=tk.CENTER)
+        
         # 状态栏
         status_frame = ttk.Frame(main_frame)
-        status_frame.grid(row=2, column=0, sticky=(tk.W, tk.E), pady=(0, 0))
+        status_frame.grid(row=2, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(10, 0))
         
         self.status_label = ttk.Label(status_frame, text="请选择数据文件", relief=tk.SUNKEN, anchor=tk.W)
         self.status_label.pack(fill=tk.X)
-        
-        # 操作提示
-        tip_frame = ttk.Frame(main_frame)
-        tip_frame.grid(row=3, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(10, 0))
-        
-        tip_text = "提示: 双击表格中的任意行可查看该股票的K线图"
-        tip_label = ttk.Label(tip_frame, text=tip_text, foreground="#666666", font=('Arial', 9))
-        tip_label.pack()
         
         # 初始化统计文本
         self.update_stats_text("等待加载数据...")
@@ -408,10 +422,10 @@ class StockKLineViewerGUI:
                 return
             
             # 在主线程中打开K线图
-            self.open_kline_viewer(stock_code, focus_date_str)
+            self.show_kline(stock_code, focus_date_str)
     
-    def open_kline_viewer(self, stock_code, focus_date_str):
-        """在主线程中打开K线图查看器"""
+    def show_kline(self, stock_code, focus_date_str):
+        """显示K线图"""
         try:
             # 计算日期范围（关注日期前后各15天）
             focus_date_obj = datetime.strptime(focus_date_str, "%Y%m%d")
@@ -419,90 +433,38 @@ class StockKLineViewerGUI:
             end_date = (focus_date_obj + timedelta(days=15)).strftime("%Y%m%d")
             
             # 更新状态
-            self.status_label.config(text=f"正在显示 {stock_code} 的K线图，关注日期: {focus_date_str}")
+            self.status_label.config(text=f"正在加载 {stock_code} 的K线图，关注日期: {focus_date_str}")
+            self.root.update()
             
-            # 创建Toplevel窗口
-            kline_window = tk.Toplevel(self.root)
-            kline_window.title(f"{stock_code} - K线图")
-            kline_window.geometry("1000x600")
+            # 清除现有的K线图
+            for widget in self.kline_container.winfo_children():
+                widget.destroy()
             
-            # 添加窗口到跟踪列表
-            self.kline_windows.append(kline_window)
+            # 创建K线图查看器（嵌入模式）
+            self.current_kline_viewer = KLineViewerEmbeddable(
+                parent=self.kline_container,
+                stock_code=stock_code,
+                start_date=start_date,
+                end_date=end_date,
+                target_date=focus_date_str,
+                is_embedded=True
+            )
             
-            # 绑定窗口关闭事件
-            kline_window.protocol("WM_DELETE_WINDOW", 
-                                 lambda w=kline_window: self.close_kline_window(w))
+            # 显示嵌入的K线图
+            success = self.current_kline_viewer.show_embedded(self.kline_container)
             
-            # 创建框架
-            frame = ttk.Frame(kline_window)
-            frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
-            
-            # 添加标题
-            title = f"股票代码: {stock_code}  关注日期: {focus_date_str}  显示范围: {start_date} 至 {end_date}"
-            title_label = ttk.Label(frame, text=title, font=('Arial', 12, 'bold'))
-            title_label.pack(pady=(0, 10))
-            
-            # 添加状态标签
-            status_label = ttk.Label(frame, text="正在加载K线图...")
-            status_label.pack(pady=5)
-            
-            # 在单独的线程中获取K线图数据
-            def load_kline_data():
-                try:
-                    # 创建K线图查看器
-                    viewer = KLineViewer(
-                        stock_code=stock_code,
-                        start_date=start_date,
-                        end_date=end_date,
-                        target_date=focus_date_str
-                    )
-                    
-                    # 在主线程中更新UI
-                    kline_window.after(0, self.display_kline, viewer, frame, status_label, kline_window)
-                    
-                except Exception as e:
-                    kline_window.after(0, self.show_kline_error, kline_window, str(e))
-            
-            # 启动加载线程
-            thread = threading.Thread(target=load_kline_data, daemon=True)
-            thread.start()
-            
+            if success:
+                self.status_label.config(text=f"已显示 {stock_code} 的K线图，关注日期: {focus_date_str}")
+            else:
+                self.status_label.config(text=f"无法加载 {stock_code} 的K线图")
+                messagebox.showerror("错误", f"无法加载 {stock_code} 的K线图数据")
+                
         except ValueError as e:
             messagebox.showerror("错误", f"日期格式错误: {e}")
         except Exception as e:
-            messagebox.showerror("错误", f"无法打开K线图: {e}")
-    
-    def display_kline(self, viewer, frame, status_label, kline_window):
-        """显示K线图"""
-        try:
-            # 移除状态标签
-            status_label.pack_forget()
-            
-            # 获取K线图组件
-            kline_widget = viewer.get_widget()  # 假设KLineViewer有这个方法
-            
-            if kline_widget:
-                # 将K线图组件添加到窗口
-                kline_widget.pack(in_=frame, fill=tk.BOTH, expand=True)
-            else:
-                # 如果没有get_widget方法，尝试直接显示
-                viewer.show()
-                
-        except Exception as e:
             messagebox.showerror("错误", f"无法显示K线图: {e}")
-    
-    def show_kline_error(self, kline_window, error_msg):
-        """显示K线图错误"""
-        messagebox.showerror("错误", f"无法加载K线图: {error_msg}")
-        kline_window.destroy()
-        if kline_window in self.kline_windows:
-            self.kline_windows.remove(kline_window)
-    
-    def close_kline_window(self, window):
-        """关闭K线图窗口"""
-        if window in self.kline_windows:
-            self.kline_windows.remove(window)
-        window.destroy()
+            import traceback
+            traceback.print_exc()
     
     def run(self):
         """运行应用程序"""
