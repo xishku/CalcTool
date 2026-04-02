@@ -6,7 +6,10 @@ from tkinter import ttk, messagebox, filedialog
 from datetime import datetime, timedelta
 import os
 import sys
-
+import subprocess
+import time
+import pyautogui
+import pygetwindow as gw
 from kline_viewer_optimized import KLineViewerOptimized
 
 
@@ -65,6 +68,12 @@ class StockKLineViewerGUI:
         self.data_records = []
         self.current_file = None
         self.current_kline_viewer = None
+        self.current_stock_code = None
+        self.current_focus_date = None
+        
+        # 设置pyautogui安全设置
+        pyautogui.FAILSAFE = True
+        pyautogui.PAUSE = 0.5
         
         # 创建主窗口
         self.root = tk.Tk()
@@ -289,13 +298,36 @@ class StockKLineViewerGUI:
     
     def create_right_panel(self, parent):
         """创建右侧面板"""
-        right_frame = ttk.LabelFrame(parent, text="K线图", padding="5")
+        right_frame = ttk.Frame(parent)
         right_frame.grid(row=1, column=1, sticky=(tk.W, tk.E, tk.N, tk.S))
         right_frame.columnconfigure(0, weight=1)
-        right_frame.rowconfigure(0, weight=1)
+        right_frame.rowconfigure(1, weight=1)
+        
+        # 创建工具按钮区域
+        tool_frame = ttk.Frame(right_frame, height=40)
+        tool_frame.grid(row=0, column=0, sticky=(tk.W, tk.E), pady=(0, 5))
+        tool_frame.grid_propagate(False)  # 固定高度
+        
+        # 通达信按钮
+        self.tdx_button = ttk.Button(tool_frame, text="通达信", 
+                                   state='disabled',
+                                   command=self.open_tdx)
+        self.tdx_button.pack(side=tk.LEFT, padx=(0, 10))
+        
+        # 同花顺按钮
+        self.ths_button = ttk.Button(tool_frame, text="同花顺", 
+                                   state='disabled',
+                                   command=self.open_ths)
+        self.ths_button.pack(side=tk.LEFT)
         
         # 创建K线图容器框架
-        self.kline_container = ttk.Frame(right_frame)
+        kline_frame = ttk.LabelFrame(right_frame, text="K线图", padding="5")
+        kline_frame.grid(row=1, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        kline_frame.columnconfigure(0, weight=1)
+        kline_frame.rowconfigure(0, weight=1)
+        
+        # 创建K线图容器
+        self.kline_container = ttk.Frame(kline_frame)
         self.kline_container.grid(row=0, column=0, 
                                  sticky=(tk.W, tk.E, tk.N, tk.S), 
                                  padx=5, pady=5)
@@ -310,6 +342,250 @@ class StockKLineViewerGUI:
         tip_label.place(relx=0.5, rely=0.5, anchor=tk.CENTER)
         
         return right_frame
+    
+    def find_window(self, keywords):
+        """查找包含关键字的窗口"""
+        try:
+            for window in gw.getAllWindows():
+                if window.title:
+                    for keyword in keywords:
+                        if keyword in window.title:
+                            return window
+        except Exception as e:
+            print(f"查找窗口出错: {e}")
+        
+        return None
+    
+    def activate_window(self, window):
+        """激活窗口"""
+        try:
+            window.activate()
+            if window.isMinimized:
+                window.restore()
+            time.sleep(0.5)  # 等待窗口激活
+            return True
+        except Exception as e:
+            print(f"激活窗口失败: {e}")
+            return False
+    
+    def open_tdx(self):
+        """打开通达信并自动定位到当前股票"""
+        if not self.current_stock_code:
+            messagebox.showinfo("提示", "请先选择股票")
+            return
+        
+        stock_code = self.current_stock_code
+        
+        # 1. 首先尝试查找已打开的窗口
+        tdx_window = self.find_window(["通达信", "TDX"])
+        
+        if tdx_window:
+            # 通达信已打开，激活窗口
+            if self.activate_window(tdx_window):
+                self.status_label.config(
+                    text=f"正在通达信中定位 {stock_code} 的日K线...")
+                # 在通达信中自动输入股票代码
+                self.auto_input_tdx_stock(stock_code, tdx_window)
+            else:
+                self.status_label.config(
+                    text="通达信已打开，但无法激活窗口")
+        else:
+            # 通达信未打开，启动程序
+            self.launch_tdx_directly(stock_code)
+    
+    def auto_input_tdx_stock(self, stock_code, window):
+        """在通达信中自动输入股票代码并定位"""
+        try:
+            # 等待窗口完全激活
+            time.sleep(1)
+            
+            # 方法1：直接键盘输入（通达信支持直接输入）
+            pyautogui.typewrite(stock_code)
+            time.sleep(0.5)
+            
+            # 按回车确认
+            pyautogui.press('enter')
+            time.sleep(2)  # 等待K线图加载
+            
+            # 确保在K线图模式
+            pyautogui.press('f5')
+            time.sleep(1)
+            
+            # 如果没反应，尝试用快捷键
+            pyautogui.press('esc')  # 先取消
+            time.sleep(0.2)
+            
+            # # 方法2：使用数字键盘输入
+            # pyautogui.press('num0')  # 确保在数字状态
+            # time.sleep(0.1)
+            # pyautogui.typewrite(stock_code)
+            # time.sleep(0.5)
+            # pyautogui.press('enter')
+            # time.sleep(2)
+            
+            # # 切换到日K线
+            # pyautogui.press('f8')
+            # time.sleep(0.5)
+            # pyautogui.press('5')  # 数字5通常对应日K线
+            # time.sleep(1)
+            
+            # # 确保焦点在K线图区域
+            # center_x = window.left + window.width * 2 // 3
+            # center_y = window.top + window.height // 2
+            # pyautogui.click(center_x, center_y)
+            # time.sleep(0.3)
+            
+            self.status_label.config(
+                text=f"已在通达信中定位到 {stock_code} 的日K线")
+            
+        except Exception as e:
+            messagebox.showerror("错误", f"通达信自动化失败: {e}")
+            self.status_label.config(
+                text=f"通达信自动化失败，请手动输入 {stock_code}")
+    
+    def launch_tdx_directly(self, stock_code):
+        """直接启动通达信程序"""
+        try:
+            # 通达信常见安装路径
+            tdx_paths = [
+                r"C:\new_tdx\TdxW.exe",  # 独立行情版
+                r"D:\new_tdx\TdxW.exe",  # D盘
+                r"E:\new_tdx\TdxW.exe",  # E盘
+                r"C:\tdx\TdxW.exe",      # 传统安装
+                r"D:\tdx\TdxW.exe",      # D盘传统
+                r"C:\通达信\TdxW.exe",    # 标准安装
+            ]
+            
+            for path in tdx_paths:
+                if os.path.exists(path):
+                    subprocess.Popen([path])
+                    time.sleep(5)  # 等待通达信启动
+                    
+                    # 尝试查找窗口
+                    tdx_window = self.find_window(["通达信", "TDX"])
+                    if tdx_window and self.activate_window(tdx_window):
+                        time.sleep(2)
+                        self.auto_input_tdx_stock(stock_code, tdx_window)
+                    else:
+                        self.status_label.config(
+                            text=f"已启动通达信，请手动输入 {stock_code}")
+                    return
+            
+            messagebox.showinfo("提示", 
+                f"未找到通达信程序，请手动打开后输入 {stock_code}")
+            
+        except Exception as e:
+            messagebox.showerror("错误", f"启动通达信失败: {e}")
+    
+    def open_ths(self):
+        """打开同花顺并自动定位到当前股票"""
+        if not self.current_stock_code:
+            messagebox.showinfo("提示", "请先选择股票")
+            return
+        
+        stock_code = self.current_stock_code
+        
+        # 1. 首先尝试查找已打开的窗口
+        ths_window = self.find_window(["同花顺", "THS", "hexin"])
+        
+        if ths_window:
+            # 同花顺已打开，激活窗口
+            if self.activate_window(ths_window):
+                padded_code = stock_code.zfill(6)  # 补齐到6位
+                self.status_label.config(
+                    text=f"正在同花顺中定位 {padded_code} 的日K线...")
+                # 在同花顺中自动输入股票代码
+                self.auto_input_ths_stock(stock_code, ths_window)
+            else:
+                self.status_label.config(
+                    text="同花顺已打开，但无法激活窗口")
+        else:
+            # 同花顺未打开，启动程序
+            self.launch_ths_directly(stock_code)
+    
+    def auto_input_ths_stock(self, stock_code, window):
+        """在同花顺中自动输入股票代码并定位 - 简化版本"""
+        try:
+            # 等待窗口完全激活
+            time.sleep(1)
+            
+            # 补齐股票代码前面的零，确保是6位
+            padded_code = stock_code.zfill(6)
+            
+            # 方法1：直接键盘输入（同花顺支持直接输入）
+            pyautogui.typewrite(padded_code)
+            time.sleep(0.5)
+            
+            # 按回车确认
+            pyautogui.press('enter')
+            time.sleep(2)  # 等待K线图加载
+            
+            # 确保在K线图模式
+            pyautogui.press('f5')
+            time.sleep(1)
+            
+            # # 切换到日K线
+            # pyautogui.press('f8')
+            # time.sleep(0.5)
+            # pyautogui.press('5')  # 数字5通常对应日K线
+            # time.sleep(1)
+            # pyautogui.press('enter')
+            # time.sleep(1)
+            
+            # # 确保焦点在K线图区域
+            # center_x = window.left + window.width * 2 // 3
+            # center_y = window.top + window.height // 2
+            # pyautogui.click(center_x, center_y)
+            # time.sleep(0.3)
+            
+            # # 同花顺有时需要按空格激活十字光标
+            # pyautogui.press('space')
+            # time.sleep(0.2)
+            # pyautogui.press('space')
+            # time.sleep(0.2)
+            
+            self.status_label.config(
+                text=f"已在同花顺中定位到 {padded_code} 的日K线")
+            
+        except Exception as e:
+            messagebox.showerror("错误", f"同花顺自动化失败: {e}")
+            padded_code = stock_code.zfill(6)
+            self.status_label.config(
+                text=f"同花顺自动化失败，请手动输入 {padded_code}")
+    
+    def launch_ths_directly(self, stock_code):
+        """直接启动同花顺程序"""
+        try:
+            # 同花顺常见安装路径
+            ths_paths = [
+                r"C:\同花顺\hexin.exe",  # 标准安装
+                r"D:\同花顺\hexin.exe",  # D盘
+                r"C:\Program Files\同花顺\hexin.exe",  # 默认安装
+                r"C:\ths\hexin.exe",     # 简化路径
+            ]
+            
+            for path in ths_paths:
+                if os.path.exists(path):
+                    subprocess.Popen([path])
+                    time.sleep(5)  # 等待同花顺启动
+                    
+                    # 尝试查找窗口
+                    ths_window = self.find_window(["同花顺", "THS", "hexin"])
+                    if ths_window and self.activate_window(ths_window):
+                        time.sleep(2)
+                        self.auto_input_ths_stock(stock_code, ths_window)
+                    else:
+                        padded_code = stock_code.zfill(6)
+                        self.status_label.config(
+                            text=f"已启动同花顺，请手动输入 {padded_code}")
+                    return
+            
+            padded_code = stock_code.zfill(6)
+            messagebox.showinfo("提示", 
+                f"未找到同花顺程序，请手动打开后输入 {padded_code}")
+            
+        except Exception as e:
+            messagebox.showerror("错误", f"启动同花顺失败: {e}")
     
     def select_file(self):
         """选择数据文件"""
@@ -467,6 +743,14 @@ class StockKLineViewerGUI:
             stock_code = str(values[2])
             focus_date_str = str(values[3])
             
+            # 保存当前选择的股票代码
+            self.current_stock_code = stock_code
+            self.current_focus_date = focus_date_str
+            
+            # 启用外部软件按钮
+            self.tdx_button.config(state='normal')
+            self.ths_button.config(state='normal')
+            
             # 验证日期格式
             if not (len(focus_date_str) == 8 and focus_date_str.isdigit()):
                 messagebox.showwarning("警告", 
@@ -482,9 +766,9 @@ class StockKLineViewerGUI:
         try:
             # 计算日期范围（关注日期前后各15天）
             focus_date_obj = datetime.strptime(focus_date_str, "%Y%m%d")
-            start_date = (focus_date_obj - timedelta(days=35)).strftime(
+            start_date = (focus_date_obj - timedelta(days=15)).strftime(
                 "%Y%m%d")
-            end_date = (focus_date_obj + timedelta(days=35)).strftime(
+            end_date = (focus_date_obj + timedelta(days=15)).strftime(
                 "%Y%m%d")
             
             # 更新状态
@@ -498,14 +782,12 @@ class StockKLineViewerGUI:
                 widget.destroy()
             
             # 创建K线图查看器（嵌入模式）
-            # 如果想显示更多天，比如50天
             self.current_kline_viewer = KLineViewerOptimized(
                 parent=self.kline_container,
                 stock_code=stock_code,
                 start_date=start_date,
                 end_date=end_date,
                 target_date=focus_date_str,
-                display_days=50,  # 显示50天
                 is_embedded=True
             )
             
@@ -537,6 +819,23 @@ class StockKLineViewerGUI:
 
 def main():
     """主函数"""
+    # 检查是否安装了必要的库
+    try:
+        import pygetwindow
+        print("已安装窗口管理模块: pygetwindow")
+    except ImportError:
+        print("未安装pygetwindow，将无法检测已打开的窗口")
+        print("请运行: pip install pygetwindow")
+        return
+    
+    try:
+        import pyautogui
+        print("已安装自动化模块: pyautogui")
+    except ImportError:
+        print("未安装pyautogui，将无法模拟鼠标键盘操作")
+        print("请运行: pip install pyautogui")
+        return
+    
     # 创建并运行GUI应用程序
     app = StockKLineViewerGUI()
     app.run()
