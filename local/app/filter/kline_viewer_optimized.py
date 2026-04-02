@@ -49,16 +49,25 @@ class KLineViewerOptimized:
     
     def __init__(self, parent=None, stock_code="601398", 
                  start_date="20260101", end_date="20260401", 
-                 target_date=None, display_days=30, is_embedded=False):
+                 target_date=None, display_days=40, is_embedded=False):  # 改为40
         """
         初始化K线查看器
+        
+        Args:
+            parent: 父窗口，如果为None则创建独立窗口
+            stock_code: 股票代码
+            start_date: 开始日期
+            end_date: 结束日期
+            target_date: 默认定位的目标日期
+            display_days: 显示天数（默认40天，显示更紧凑）
+            is_embedded: 是否为嵌入模式
         """
         self.parent = parent
         self.stock_code = stock_code
         self.start_date = start_date
         self.end_date = end_date
         self.target_date = target_date
-        self.display_days = display_days
+        self.display_days = display_days  # 默认显示40个交易日
         self.is_embedded = is_embedded
         
         # 数据相关
@@ -440,12 +449,12 @@ class KLineViewerOptimized:
             'axes.unicode_minus': False,
         }
         
-        # 创建子图
-        self.ax1 = plt.subplot2grid((6, 1), (0, 0), rowspan=4, fig=self.fig)
-        self.ax2 = plt.subplot2grid((6, 1), (4, 0), rowspan=2, 
+        # 创建子图，调整比例以显示更多K线
+        self.ax1 = plt.subplot2grid((5, 1), (0, 0), rowspan=3, fig=self.fig)  # 调整比例
+        self.ax2 = plt.subplot2grid((5, 1), (3, 0), rowspan=2,  # 调整比例
                                    sharex=self.ax1, fig=self.fig)
         
-        # 设置标题
+        # 设置标题，使用更小的字体
         if is_locate:
             if min_diff > 0:
                 actual_date = self.df.iloc[highlight_idx]['Date'].strftime(
@@ -460,14 +469,14 @@ class KLineViewerOptimized:
             title = (f'{self.display_stock_code} 日K线 '
                     f'({self.start_date_str} 至 {self.end_date_str})')
         
-        self.ax1.set_title(title, fontsize=14, fontweight='bold', pad=20)
+        self.ax1.set_title(title, fontsize=12, fontweight='bold', pad=15)  # 减小字体
         
         # 准备数据 - 使用整数索引确保日期连续
         plot_dates = np.arange(len(self.current_display_df))
         dates_list = self.current_display_df['Date'].tolist()
         
-        # 存储蜡烛宽度
-        candle_width = 0.6
+        # 存储蜡烛宽度 - 减小宽度以显示更紧凑
+        candle_width = 0.5  # 从0.6减小到0.5
         
         # 绘制每个蜡烛
         patches = []
@@ -489,7 +498,7 @@ class KLineViewerOptimized:
             
             # 绘制影线
             self.ax1.plot([plot_dates[i], plot_dates[i]], [low, high], 
-                         color=color, linewidth=1, zorder=2)
+                         color=color, linewidth=0.8, zorder=2)  # 减小线宽
             
             # 绘制实体
             rect = Rectangle(
@@ -520,17 +529,17 @@ class KLineViewerOptimized:
                         ma = np.nan
                     ma_values.append(ma)
                 
-                # 绘制均线
+                # 绘制均线，减小线宽
                 ma_line, = self.ax1.plot(plot_dates, ma_values, 
                                        color=f'C{period//10}', 
-                                       linewidth=1.5, label=f'MA{period}', 
+                                       linewidth=1.2, label=f'MA{period}',  # 减小线宽
                                        alpha=0.7, zorder=1)
                 
                 # 将均线也添加到映射
                 for i, date_str in enumerate(self.current_display_df['date']):
                     self.date_to_patch_map[f"{date_str}_MA{period}"] = ma_line
         
-        # 绘制成交量
+        # 绘制成交量，减小宽度
         volume_colors = []
         volume_heights = []
         for i, (idx, row) in enumerate(self.current_display_df.iterrows()):
@@ -540,11 +549,11 @@ class KLineViewerOptimized:
                 volume_colors.append('green')
             volume_heights.append(row['Volume'])
         
-        self.ax2.bar(plot_dates, volume_heights, width=candle_width*0.8, 
+        self.ax2.bar(plot_dates, volume_heights, width=candle_width*0.7,  # 减小宽度
                    color=volume_colors, alpha=0.7, zorder=2)
         
-        # 设置X轴刻度
-        n_ticks = min(10, len(plot_dates))
+        # 设置X轴刻度，减少刻度数量
+        n_ticks = min(8, len(plot_dates))  # 减少刻度数量
         if n_ticks > 0:
             tick_indices = np.linspace(0, len(plot_dates)-1, n_ticks, 
                                       dtype=int)
@@ -555,23 +564,23 @@ class KLineViewerOptimized:
                     tick_labels.append(date_obj.strftime('%m-%d'))
             
             self.ax1.set_xticks(plot_dates[tick_indices])
-            self.ax1.set_xticklabels(tick_labels, fontsize=9)
+            self.ax1.set_xticklabels(tick_labels, fontsize=8)  # 减小字体
             self.ax2.set_xticks(plot_dates[tick_indices])
-            self.ax2.set_xticklabels(tick_labels, fontsize=9)
+            self.ax2.set_xticklabels(tick_labels, fontsize=8)  # 减小字体
         
         # 设置Y轴格式
         self.ax1.yaxis.set_major_formatter(
             FuncFormatter(self._format_y_axis))
-        self.ax1.yaxis.set_major_locator(MaxNLocator(prune='both', nbins=8))
+        self.ax1.yaxis.set_major_locator(MaxNLocator(prune='both', nbins=6))  # 减少刻度
         
-        # 添加Y轴标签
-        self.ax1.set_ylabel('价格(元)', fontsize=10)
-        self.ax2.set_ylabel('成交量', fontsize=10)
+        # 添加Y轴标签，减小字体
+        self.ax1.set_ylabel('价格(元)', fontsize=9)
+        self.ax2.set_ylabel('成交量', fontsize=9)
         
-        # 添加图例
-        self.ax1.legend(loc='upper left', fontsize=9)
+        # 添加图例，减小字体
+        self.ax1.legend(loc='upper left', fontsize=8)
         
-        # 在图表最下方添加完整的日期说明
+        # 在图表最下方添加完整的日期说明，减小字体
         if len(self.current_display_df) > 0:
             first_date = self.current_display_df.iloc[0]['Date'].strftime(
                 '%Y-%m-%d')
@@ -579,8 +588,8 @@ class KLineViewerOptimized:
                 '%Y-%m-%d')
             date_info = (f"显示日期范围: {first_date} 至 {last_date} "
                         f"(共{len(self.current_display_df)}个交易日)")
-            self.fig.text(0.5, 0.01, date_info, ha='center', fontsize=10, 
-                        bbox=dict(boxstyle="round,pad=0.3", 
+            self.fig.text(0.5, 0.01, date_info, ha='center', fontsize=9,  # 减小字体
+                        bbox=dict(boxstyle="round,pad=0.2",  # 减小内边距
                                  facecolor="lightgray", alpha=0.8))
             
             # 更新日期标签
@@ -605,14 +614,14 @@ class KLineViewerOptimized:
                 # 添加垂直线标记
                 self.ax1.axvline(x=plot_dates[highlight_idx_in_display], 
                                color='red', alpha=0.7, 
-                               linestyle='--', linewidth=2, zorder=4)
+                               linestyle='--', linewidth=1.5, zorder=4)  # 减小线宽
                 self.ax2.axvline(x=plot_dates[highlight_idx_in_display], 
                                color='red', alpha=0.7, 
-                               linestyle='--', linewidth=2, zorder=4)
+                               linestyle='--', linewidth=1.5, zorder=4)  # 减小线宽
                 
                 # 添加标记点
                 self.ax1.plot(plot_dates[highlight_idx_in_display], 
-                            loc_close, 'ro', markersize=10, 
+                            loc_close, 'ro', markersize=8,  # 减小标记大小
                             alpha=0.7, zorder=5)
                 
                 # 添加文本标签
@@ -620,18 +629,18 @@ class KLineViewerOptimized:
                 date_display = loc_date.strftime('%Y-%m-%d')
                 self.ax1.text(plot_dates[highlight_idx_in_display], 
                             ylim[1] * 0.95, f'← {date_display}', 
-                            fontsize=11, color='red', va='top', ha='left', 
+                            fontsize=10, color='red', va='top', ha='left',  # 减小字体
                             weight='bold',
-                            bbox=dict(boxstyle="round,pad=0.3", 
+                            bbox=dict(boxstyle="round,pad=0.2",  # 减小内边距
                                      facecolor="yellow", alpha=0.9),
                             zorder=6)
         
-        # 设置X轴范围
-        self.ax1.set_xlim(plot_dates[0] - 1, plot_dates[-1] + 1)
-        self.ax2.set_xlim(plot_dates[0] - 1, plot_dates[-1] + 1)
+        # 设置X轴范围，减小边距
+        self.ax1.set_xlim(plot_dates[0] - 0.5, plot_dates[-1] + 0.5)  # 减小边距
+        self.ax2.set_xlim(plot_dates[0] - 0.5, plot_dates[-1] + 0.5)  # 减小边距
         
-        # 调整布局
-        plt.tight_layout(rect=[0, 0.05, 1, 0.95])
+        # 调整布局，使用更紧凑的布局
+        plt.tight_layout(rect=[0, 0.04, 1, 0.96])  # 调整布局矩形
         
         # 重新连接鼠标悬停事件
         if self.cursor is not None:
@@ -639,11 +648,11 @@ class KLineViewerOptimized:
         self.cursor = mplcursors.cursor(patches, hover=True)
         self.cursor.connect("add", self._on_add)
         
-        # 添加键盘提示
-        self.fig.text(0.5, 0.96, 
+        # 添加键盘提示，减小字体
+        self.fig.text(0.5, 0.97,  # 调整位置
                      "提示：按 G 键输入日期定位，按 ← → 键逐日浏览", 
-                    ha='center', fontsize=10, color='blue',
-                    bbox=dict(boxstyle="round,pad=0.5", 
+                    ha='center', fontsize=9, color='blue',  # 减小字体
+                    bbox=dict(boxstyle="round,pad=0.3",  # 减小内边距
                              facecolor="lightblue", alpha=0.8))
         
         self.canvas.draw()

@@ -482,9 +482,9 @@ class StockKLineViewerGUI:
         try:
             # 计算日期范围（关注日期前后各15天）
             focus_date_obj = datetime.strptime(focus_date_str, "%Y%m%d")
-            start_date = (focus_date_obj - timedelta(days=15)).strftime(
+            start_date = (focus_date_obj - timedelta(days=35)).strftime(
                 "%Y%m%d")
-            end_date = (focus_date_obj + timedelta(days=15)).strftime(
+            end_date = (focus_date_obj + timedelta(days=35)).strftime(
                 "%Y%m%d")
             
             # 更新状态
@@ -498,12 +498,14 @@ class StockKLineViewerGUI:
                 widget.destroy()
             
             # 创建K线图查看器（嵌入模式）
+            # 如果想显示更多天，比如50天
             self.current_kline_viewer = KLineViewerOptimized(
                 parent=self.kline_container,
                 stock_code=stock_code,
                 start_date=start_date,
                 end_date=end_date,
                 target_date=focus_date_str,
+                display_days=50,  # 显示50天
                 is_embedded=True
             )
             
