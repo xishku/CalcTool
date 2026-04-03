@@ -4,6 +4,7 @@
 """
 股票控制器
 处理股票相关的所有操作，包括K线图显示、外部软件集成和股票数据处理
+修复了切换股票后左侧面板被遮挡的问题
 """
 
 import os
@@ -13,10 +14,11 @@ from tkinter import ttk, messagebox
 from datetime import datetime, timedelta
 import threading
 import time
+import re
 
 
 class StockController:
-    """股票控制器 - 处理股票相关操作"""
+    """股票控制器 - 处理股票相关操作，修复了左侧面板遮挡问题"""
     
     def __init__(self, app):
         """
@@ -32,6 +34,10 @@ class StockController:
         self.kline_history = []
         self.max_kline_history = 5
         
+        # 布局修复相关状态
+        self.layout_fix_attempted = False
+        self.layout_fix_in_progress = False
+        
     def on_stock_selected(self, stock_code, focus_date_str, timestamp=None):
         """
         股票被选中时的处理（从表格双击触发）
@@ -45,6 +51,9 @@ class StockController:
             bool: 处理是否成功
         """
         try:
+            print(f"[INFO] 开始处理股票选择: {stock_code}, 日期: {focus_date_str}")
+            print(f"[DEBUG] 选择前，左侧面板可见: {self.app.left_panel_visible if hasattr(self.app, 'left_panel_visible') else 'N/A'}")
+            
             # 验证输入参数
             if not stock_code or not focus_date_str:
                 messagebox.showwarning("警告", "股票代码和关注日期不能为空")
@@ -167,6 +176,227 @@ class StockController:
             messagebox.showerror("错误", error_msg)
             self._update_status(f"K线图加载失败: {stock_code}")
             return False
+    
+    def _update_kline_ui(self, success, stock_code, focus_date_str, kline_instance, 
+                        container, loading_label):
+        """
+        更新K线图UI - 修复左侧遮挡问题
+        
+        参数:
+            success: K线图加载是否成功
+            stock_code: 股票代码
+            focus_date_str: 关注日期
+            kline_instance: K线图实例
+            container: 容器
+            loading_label: 加载标签
+        """
+        try:
+            # 移除加载指示器
+            if loading_label and loading_label.winfo_exists():
+                loading_label.destroy()
+            
+            if success:
+                # 保存K线图实例
+                self.current_kline_viewer = kline_instance
+                
+                # 更新状态
+                self._update_status(f"已显示 {stock_code} 的K线图，关注日期: {focus_date_str}")
+                
+                # 关键修复：延迟重新计算布局
+                self._fix_layout_after_kline_load(container)
+                
+                # 记录成功
+                print(f"[INFO] K线图显示成功: {stock_code}")
+                
+            else:
+                # 显示错误
+                self._show_kline_error(container, None, "K线图加载失败")
+                self._update_status(f"无法加载 {stock_code} 的K线图")
+                
+                # 记录失败
+                print(f"[ERROR] K线图显示失败: {stock_code}")
+                
+        except Exception as e:
+            error_msg = f"更新K线图UI时出错:\n{str(e)}"
+            self._show_kline_error(container, loading_label, error_msg)
+            print(f"[ERROR] 更新K线图UI时出错: {str(e)}")
+    
+    def _fix_layout_after_kline_load(self, container):
+        """修复K线图加载后的布局问题"""
+        try:
+            if not hasattr(self.app, 'root'):
+                return
+            
+            root = self.app.root
+            self.layout_fix_attempted = True
+            self.layout_fix_in_progress = True
+            
+            print(f"[DEBUG] 开始修复布局，左侧面板可见: {self.app.left_panel_visible}")
+            
+            # 方法1：强制重新计算几何尺寸
+            def update_geometry():
+                try:
+                    # 获取当前窗口尺寸
+                    current_geometry = root.geometry()
+                    print(f"[DEBUG] 当前窗口几何: {current_geometry}")
+                    
+                    # 临时调整窗口尺寸触发重排
+                    root.update_idletasks()
+                    
+                    # 确保左侧面板可见
+                    if hasattr(self.app, 'left_panel'):
+                        left_frame = getattr(self.app.left_panel, 'frame', None)
+                        if left_frame and left_frame.winfo_exists():
+                            # 检查左侧面板是否可见
+                            if not left_frame.winfo_viewable() and self.app.left_panel_visible:
+                                print(f"[FIX] 检测到左侧面板被遮挡，重新打包")
+                                
+                                # 临时隐藏右侧面板
+                                if hasattr(self.app, 'right_panel'):
+                                    right_frame = getattr(self.app.right_panel, 'frame', None)
+                                    if right_frame and right_frame.winfo_exists():
+                                        right_frame.pack_forget()
+                                
+                                # 重新打包左侧面板
+                                left_frame.pack_forget()
+                                left_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+                                
+                                # 重新打包右侧面板
+                                if hasattr(self.app, 'right_panel'):
+                                    right_frame = getattr(self.app.right_panel, 'frame', None)
+                                    if right_frame and right_frame.winfo_exists():
+                                        right_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(5, 0))
+                            
+                            # 强制更新
+                            left_frame.update_idletasks()
+                    
+                    # 更新整个窗口
+                    root.update_idletasks()
+                    
+                    # 延迟再次检查
+                    root.after(100, lambda: self._verify_layout_fixed())
+                    
+                except Exception as e:
+                    print(f"[ERROR] 修复布局时出错: {str(e)}")
+                    self.layout_fix_in_progress = False
+            
+            # 延迟执行布局修复
+            root.after(50, update_geometry)
+            
+        except Exception as e:
+            print(f"[ERROR] 布局修复函数出错: {str(e)}")
+            self.layout_fix_in_progress = False
+    
+    def _verify_layout_fixed(self):
+        """验证布局是否已修复"""
+        try:
+            if not hasattr(self.app, 'root'):
+                return
+            
+            root = self.app.root
+            
+            # 检查左侧面板是否可见
+            if hasattr(self.app, 'left_panel'):
+                left_frame = getattr(self.app.left_panel, 'frame', None)
+                if left_frame and left_frame.winfo_exists():
+                    # 检查左侧面板是否在屏幕上可见
+                    if left_frame.winfo_viewable():
+                        print("[INFO] 左侧面板可见，布局修复成功")
+                    else:
+                        print("[WARNING] 左侧面板不可见，尝试重新显示")
+                        
+                        # 重新打包左侧面板
+                        left_frame.pack_forget()
+                        left_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+                        root.update_idletasks()
+            
+            self.layout_fix_in_progress = False
+            
+        except Exception as e:
+            print(f"[ERROR] 验证布局时出错: {str(e)}")
+            self.layout_fix_in_progress = False
+    
+    def _stable_final_adjustment(self):
+        """稳定的最终布局调整 - 增强版本，修复左侧遮挡问题"""
+        try:
+            print("[DEBUG] 开始最终布局调整")
+            
+            # 确保K线图尺寸合适
+            if self.current_kline_viewer and hasattr(self.current_kline_viewer, 'canvas'):
+                canvas = self.current_kline_viewer.canvas
+                if canvas:
+                    canvas_widget = canvas.get_tk_widget()
+                    container = self.app.get_kline_container()
+                    
+                    if container:
+                        # 设置合适尺寸
+                        canvas_widget.config(width=600, height=500)
+            
+            # 关键修复：强制重新计算整个窗口布局
+            if hasattr(self.app, 'root'):
+                root = self.app.root
+                
+                # 方法1：轻微调整窗口尺寸触发重排
+                current_geometry = root.geometry()
+                if 'x' in current_geometry:
+                    # 解析当前几何
+                    import re
+                    match = re.match(r'(\d+)x(\d+)\+(\d+)\+(\d+)', current_geometry)
+                    if match:
+                        width, height, x, y = map(int, match.groups())
+                        # 临时调整宽度1像素
+                        root.geometry(f"{width+1}x{height}+{x}+{y}")
+                        root.update()
+                        # 恢复原尺寸
+                        root.geometry(f"{width}x{height}+{x}+{y}")
+                
+                # 方法2：延迟重新布局
+                root.after(150, lambda: self._final_window_update())
+            
+        except Exception as e:
+            print(f"[ERROR] 布局调整时出错: {str(e)}")
+    
+    def _final_window_update(self):
+        """最终窗口更新，确保所有部件正确显示"""
+        try:
+            if not hasattr(self.app, 'root'):
+                return
+            
+            root = self.app.root
+            
+            # 确保所有更新完成
+            root.update_idletasks()
+            
+            # 特别确保左侧面板
+            if hasattr(self.app, 'left_panel') and hasattr(self.app.left_panel, 'frame'):
+                left_frame = self.app.left_panel.frame
+                if left_frame and left_frame.winfo_exists():
+                    # 如果左侧面板应该显示但被遮挡
+                    if self.app.left_panel_visible and not left_frame.winfo_viewable():
+                        print("[FIX] 检测到左侧面板被遮挡，强制重排")
+                        
+                        # 临时方案：重新打包所有面板
+                        if hasattr(self.app, 'right_panel'):
+                            right_frame = self.app.right_panel.frame
+                            if right_frame and right_frame.winfo_exists():
+                                right_frame.pack_forget()
+                        
+                        left_frame.pack_forget()
+                        
+                        # 重新打包
+                        left_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+                        
+                        if hasattr(self.app, 'right_panel'):
+                            right_frame = self.app.right_panel.frame
+                            if right_frame and right_frame.winfo_exists():
+                                right_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(5, 0))
+            
+            # 最终更新
+            root.update_idletasks()
+            print("[DEBUG] 最终窗口更新完成")
+            
+        except Exception as e:
+            print(f"[ERROR] 最终窗口更新时出错: {str(e)}")
     
     def open_tdx(self):
         """
@@ -463,13 +693,6 @@ class StockController:
                                        foreground="#666666")
                         label.pack(expand=True)
                         
-                        # 添加详细信息
-                        info_label = tk.Label(container,
-                                            text=f"关注日期: {self.target_date}\n"
-                                                 f"日期范围: {self.start_date} 到 {self.end_date}",
-                                            font=('Arial', 10))
-                        info_label.pack(pady=10)
-                        
                         return True
                     
                     def close(self):
@@ -547,66 +770,6 @@ class StockController:
                 
         except Exception as e:
             print(f"[ERROR] 重试K线图加载时出错: {str(e)}")
-    
-    def _update_kline_ui(self, success, stock_code, focus_date_str, kline_instance, 
-                        container, loading_label):
-        """更新K线图UI"""
-        try:
-            # 移除加载指示器
-            if loading_label and loading_label.winfo_exists():
-                loading_label.destroy()
-            
-            if success:
-                # 保存K线图实例
-                self.current_kline_viewer = kline_instance
-                
-                # 更新状态
-                self._update_status(f"已显示 {stock_code} 的K线图，关注日期: {focus_date_str}")
-                
-                # 延迟调整布局
-                self.app.root.after(200, self._stable_final_adjustment)
-                
-                # 记录成功
-                print(f"[INFO] K线图显示成功: {stock_code}")
-                
-            else:
-                # 显示错误
-                self._show_kline_error(container, None, "K线图加载失败")
-                self._update_status(f"无法加载 {stock_code} 的K线图")
-                
-                # 记录失败
-                print(f"[ERROR] K线图显示失败: {stock_code}")
-                
-        except Exception as e:
-            error_msg = f"更新K线图UI时出错:\n{str(e)}"
-            self._show_kline_error(container, loading_label, error_msg)
-            print(f"[ERROR] 更新K线图UI时出错: {str(e)}")
-    
-    def _stable_final_adjustment(self):
-        """稳定的最终布局调整"""
-        try:
-            # 确保K线图尺寸合适
-            if self.current_kline_viewer and hasattr(self.current_kline_viewer, 'canvas'):
-                canvas = self.current_kline_viewer.canvas
-                if canvas:
-                    canvas_widget = canvas.get_tk_widget()
-                    container = self.app.get_kline_container()
-                    
-                    if container:
-                        container_width = container.winfo_width()
-                        container_height = container.winfo_height()
-                        
-                        if container_width > 100 and container_height > 100:
-                            canvas_widget.config(
-                                width=max(400, container_width - 20),
-                                height=max(300, container_height - 20)
-                            )
-            
-            # 延迟重新布局
-            self.app.root.after(100, self.app.root.update_idletasks)
-            
-        except Exception as e:
-            print(f"[ERROR] 布局调整时出错: {str(e)}")
     
     def _enable_external_buttons(self):
         """启用外部软件按钮"""
