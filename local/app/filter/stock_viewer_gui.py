@@ -7,8 +7,6 @@ from datetime import datetime, timedelta
 import os
 import sys
 from kline_viewer_optimized import KLineViewerOptimized
-
-# 导入新的工具类
 from tdx_tools import TdxTools
 from ths_tools import ThsTools
 
@@ -70,6 +68,7 @@ class StockKLineViewerGUI:
         self.current_kline_viewer = None
         self.current_stock_code = None
         self.current_focus_date = None
+        self.left_panel_visible = True  # 左侧面板是否可见
         
         # 创建通达信和同花顺工具实例
         self.tdx_tools = TdxTools()
@@ -78,17 +77,26 @@ class StockKLineViewerGUI:
         # 创建主窗口
         self.root = tk.Tk()
         self.root.title("股票关注日期查看器")
-        self.root.geometry("1400x800")
+        
+        # 设置初始尺寸
+        screen_width = self.root.winfo_screenwidth()
+        screen_height = self.root.winfo_screenheight()
+        width = int(screen_width * 0.85)
+        height = int(screen_height * 0.85)
+        self.root.geometry(f"{width}x{height}+{int(screen_width*0.08)}+{int(screen_height*0.08)}")
         
         # 绑定窗口关闭事件
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
+        
+        # 允许窗口调整大小和最大化
+        self.root.resizable(True, True)
         
         # 设置样式
         self.setup_styles()
         
         # 初始化UI
         self.init_ui()
-    
+        
     def on_closing(self):
         """关闭主窗口时清理资源"""
         if self.current_kline_viewer:
@@ -108,41 +116,45 @@ class StockKLineViewerGUI:
         style.configure("Treeview",
                        background="#f0f0f0",
                        foreground="black",
-                       rowheight=25,
+                       rowheight=22,
                        fieldbackground="#f0f0f0")
         
         style.configure("Treeview.Heading",
                        background="#4a6fa5",
                        foreground="white",
-                       font=('Arial', 10, 'bold'))
+                       font=('Arial', 8, 'bold'))
         
         style.map("Treeview",
                  background=[('selected', '#3465a4')],
                  foreground=[('selected', 'white')])
+        
+        # 小字体样式
+        style.configure("Tiny.TButton", font=('Arial', 8))
+        style.configure("Tiny.TLabel", font=('Arial', 8))
+        style.configure("Tiny.TEntry", font=('Arial', 8))
     
     def init_ui(self):
         """初始化用户界面"""
-        # 主框架
-        main_frame = ttk.Frame(self.root, padding="5")
-        main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
-        
-        # 配置网格权重
-        self.root.columnconfigure(0, weight=1)
-        self.root.rowconfigure(0, weight=1)
-        main_frame.columnconfigure(0, weight=1)
-        main_frame.columnconfigure(1, weight=2)
-        main_frame.rowconfigure(1, weight=1)
+        # 主容器
+        main_container = ttk.Frame(self.root)
+        main_container.pack(fill=tk.BOTH, expand=True, padx=3, pady=3)
         
         # 标题和文件选择区域
-        header_frame = ttk.Frame(main_frame)
-        header_frame.grid(row=0, column=0, columnspan=2, 
-                         sticky=(tk.W, tk.E), pady=(0, 10))
+        header_frame = ttk.Frame(main_container)
+        header_frame.pack(side=tk.TOP, fill=tk.X, pady=(0, 5))
         
         title_label = ttk.Label(header_frame, 
                                text="股票关注日期查看器", 
-                               font=('Arial', 16, 'bold'),
+                               font=('Arial', 12, 'bold'),
                                foreground="#2c3e50")
-        title_label.pack(side=tk.LEFT, padx=(0, 20))
+        title_label.pack(side=tk.LEFT, padx=(0, 10))
+        
+        # 左侧面板切换按钮
+        self.toggle_button = ttk.Button(header_frame, 
+                                       text="◀",  # 左箭头
+                                       width=2,
+                                       command=self.toggle_left_panel)
+        self.toggle_button.pack(side=tk.LEFT, padx=(0, 10))
         
         # 文件选择按钮
         self.file_path_var = tk.StringVar()
@@ -152,140 +164,168 @@ class StockKLineViewerGUI:
         file_button_frame.pack(side=tk.LEFT, expand=True, fill=tk.X)
         
         select_file_btn = ttk.Button(file_button_frame, 
-                                    text="选择数据文件", 
-                                    command=self.select_file)
-        select_file_btn.pack(side=tk.LEFT, padx=(0, 10))
+                                    text="选择文件", 
+                                    command=self.select_file,
+                                    style="Tiny.TButton")
+        select_file_btn.pack(side=tk.LEFT, padx=(0, 8))
         
         self.file_label = ttk.Label(file_button_frame, 
                                    textvariable=self.file_path_var,
-                                   foreground="#666666")
+                                   foreground="#666666",
+                                   font=('Arial', 8))
         self.file_label.pack(side=tk.LEFT, fill=tk.X, expand=True)
         
-        # 左侧控制面板
-        left_frame = self.create_left_panel(main_frame)
+        # 中间内容区域
+        self.content_container = ttk.Frame(main_container)
+        self.content_container.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+        
+        # 左侧控制面板 - 初始可见
+        self.left_frame = self.create_left_panel(self.content_container)
+        self.left_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         
         # 右侧K线图区域
-        right_frame = self.create_right_panel(main_frame)
+        self.right_frame = self.create_right_panel(self.content_container)
+        self.right_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(3, 0))
         
         # 状态栏
-        status_frame = ttk.Frame(main_frame)
-        status_frame.grid(row=2, column=0, columnspan=2, 
-                         sticky=(tk.W, tk.E), pady=(10, 0))
+        status_frame = ttk.Frame(main_container)
+        status_frame.pack(side=tk.BOTTOM, fill=tk.X, pady=(5, 0))
         
         self.status_label = ttk.Label(status_frame, 
                                      text="请选择数据文件", 
-                                     relief=tk.SUNKEN, anchor=tk.W)
+                                     relief=tk.SUNKEN, anchor=tk.W,
+                                     font=('Arial', 8))
         self.status_label.pack(fill=tk.X)
         
         # 初始化统计文本
         self.update_stats_text("等待加载数据...")
+        
+        # 初始调整
+        self.root.after(100, self._initial_adjustment)
+    
+    def _initial_adjustment(self):
+        """初始调整"""
+        # 确保左侧面板宽度合适
+        if hasattr(self, 'tree'):
+            # 动态调整列宽
+            self.tree.column('#1', width=25)  # 序号
+            self.tree.column('#2', width=60)  # 时间
+            self.tree.column('#3', width=40)  # 代码
+            self.tree.column('#4', width=60)  # 日期
     
     def create_left_panel(self, parent):
-        """创建左侧面板"""
-        left_frame = ttk.LabelFrame(parent, text="数据和控制面板", 
-                                   padding="10")
-        left_frame.grid(row=1, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), 
-                       padx=(0, 5))
+        """创建左侧面板 - 进一步缩小，添加隐藏功能"""
+        left_frame = ttk.LabelFrame(parent, text="数据面板", 
+                                   padding="3")
+        
+        # 使用网格布局
         left_frame.columnconfigure(0, weight=1)
-        left_frame.rowconfigure(2, weight=1)
+        for i in range(7):
+            left_frame.rowconfigure(i, weight=0)
+        left_frame.rowconfigure(6, weight=1)
         
         # 文件信息
         info_frame = ttk.Frame(left_frame)
-        info_frame.grid(row=0, column=0, sticky=(tk.W, tk.E), 
-                       pady=(0, 10))
+        info_frame.grid(row=0, column=0, sticky="ew", pady=(0, 3))
         
-        ttk.Label(info_frame, text="当前文件:", 
-                 font=('Arial', 9, 'bold')).pack(side=tk.LEFT)
+        ttk.Label(info_frame, text="文件:", 
+                 font=('Arial', 8, 'bold')).pack(side=tk.LEFT)
         self.file_info_label = ttk.Label(info_frame, 
-                                        text="未加载文件", 
-                                        foreground="#4a6fa5")
-        self.file_info_label.pack(side=tk.LEFT, padx=(5, 0))
+                                        text="无", 
+                                        foreground="#4a6fa5",
+                                        font=('Arial', 8))
+        self.file_info_label.pack(side=tk.LEFT, padx=(2, 0))
         
         # 数据统计
-        stats_label = ttk.Label(left_frame, text="数据统计:", 
-                               font=('Arial', 10, 'bold'))
-        stats_label.grid(row=1, column=0, sticky=tk.W, pady=(5, 0))
+        stats_label = ttk.Label(left_frame, text="统计:", 
+                               font=('Arial', 8, 'bold'))
+        stats_label.grid(row=1, column=0, sticky="w", pady=(0, 2))
         
-        self.stats_text = tk.Text(left_frame, height=8, width=40, 
-                                 font=('Courier', 9), bg='#f8f9fa')
-        self.stats_text.grid(row=2, column=0, 
-                            sticky=(tk.W, tk.E, tk.N, tk.S), pady=5)
+        # 统计文本
+        self.stats_text = tk.Text(left_frame, height=3,
+                                 font=('Courier', 7), bg='#f8f9fa',
+                                 wrap=tk.WORD)
+        self.stats_text.grid(row=2, column=0, sticky="nsew", pady=(0, 3))
         
         # 过滤选项
-        filter_label = ttk.Label(left_frame, text="数据过滤:", 
-                                font=('Arial', 10, 'bold'))
-        filter_label.grid(row=3, column=0, sticky=tk.W, pady=(10, 5))
+        filter_label = ttk.Label(left_frame, text="过滤:", 
+                                font=('Arial', 8, 'bold'))
+        filter_label.grid(row=3, column=0, sticky="w", pady=(0, 2))
         
+        # 过滤输入框
         filter_frame = ttk.Frame(left_frame)
-        filter_frame.grid(row=4, column=0, sticky=(tk.W, tk.E), pady=5)
+        filter_frame.grid(row=4, column=0, sticky="ew", pady=(0, 3))
         
-        ttk.Label(filter_frame, text="股票代码:").grid(
-            row=0, column=0, sticky=tk.W, padx=(0, 5))
+        # 股票代码过滤
+        ttk.Label(filter_frame, text="代码:", 
+                 font=('Arial', 7)).pack(side=tk.LEFT, padx=(0, 2))
         self.stock_filter_var = tk.StringVar()
         stock_filter_entry = ttk.Entry(filter_frame, 
                                       textvariable=self.stock_filter_var, 
-                                      width=15)
-        stock_filter_entry.grid(row=0, column=1, padx=(0, 10))
+                                      width=6,
+                                      font=('Arial', 7))
+        stock_filter_entry.pack(side=tk.LEFT, padx=(0, 6))
         
-        ttk.Label(filter_frame, text="关注日期:").grid(
-            row=0, column=2, sticky=tk.W, padx=(0, 5))
+        # 日期过滤
+        ttk.Label(filter_frame, text="日期:", 
+                 font=('Arial', 7)).pack(side=tk.LEFT, padx=(0, 2))
         self.date_filter_var = tk.StringVar()
         date_filter_entry = ttk.Entry(filter_frame, 
                                      textvariable=self.date_filter_var, 
-                                     width=15)
-        date_filter_entry.grid(row=0, column=3, padx=(0, 0))
+                                     width=6,
+                                     font=('Arial', 7))
+        date_filter_entry.pack(side=tk.LEFT)
         
         # 按钮框架
         button_frame = ttk.Frame(left_frame)
-        button_frame.grid(row=5, column=0, sticky=(tk.W, tk.E), pady=10)
+        button_frame.grid(row=5, column=0, sticky="ew", pady=(0, 5))
         
-        filter_button = ttk.Button(button_frame, text="应用过滤", 
-                                  command=self.apply_filter)
-        filter_button.pack(side=tk.LEFT, padx=(0, 5))
+        filter_button = ttk.Button(button_frame, text="过滤", 
+                                  command=self.apply_filter,
+                                  style="Tiny.TButton",
+                                  width=4)
+        filter_button.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(0, 2))
         
-        clear_filter_button = ttk.Button(button_frame, text="清除过滤", 
-                                        command=self.clear_filter)
-        clear_filter_button.pack(side=tk.LEFT, padx=(0, 5))
+        clear_filter_button = ttk.Button(button_frame, text="清除", 
+                                        command=self.clear_filter,
+                                        style="Tiny.TButton",
+                                        width=4)
+        clear_filter_button.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(0, 2))
         
-        refresh_button = ttk.Button(button_frame, text="重新加载", 
-                                   command=self.load_file)
-        refresh_button.pack(side=tk.LEFT)
+        refresh_button = ttk.Button(button_frame, text="刷新", 
+                                   command=self.load_file,
+                                   style="Tiny.TButton",
+                                   width=4)
+        refresh_button.pack(side=tk.LEFT, expand=True, fill=tk.X)
         
         # 数据表格框架
-        table_frame = ttk.LabelFrame(left_frame, text="股票数据", 
-                                    padding="5")
-        table_frame.grid(row=6, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), 
-                        pady=(10, 0))
+        table_frame = ttk.LabelFrame(left_frame, text="数据列表", 
+                                    padding="2")
+        table_frame.grid(row=6, column=0, sticky="nsew", pady=(0, 0))
         table_frame.columnconfigure(0, weight=1)
         table_frame.rowconfigure(0, weight=1)
         
-        # 创建Treeview
-        columns = ('序号', '时间戳', '股票代码', '关注日期')
+        # 创建Treeview - 进一步压缩
+        columns = ('#', '时间', '代码', '日期')
         self.tree = ttk.Treeview(table_frame, columns=columns, 
-                                show='headings', height=15)
+                                show='headings', height=10)
         
-        # 定义列
-        col_widths = [50, 150, 100, 100]
+        # 定义列 - 进一步减小宽度
+        col_widths = [25, 60, 40, 60]  # 总宽度185像素
         for idx, col in enumerate(columns):
-            self.tree.heading(col, text=col)
-            self.tree.column(col, width=col_widths[idx], anchor='center')
+            self.tree.heading(col, text=col, anchor='center')
+            self.tree.column(col, width=col_widths[idx], anchor='center', 
+                           minwidth=col_widths[idx]//2)
         
-        # 添加滚动条
+        # 添加垂直滚动条
         tree_scrollbar = ttk.Scrollbar(table_frame, 
                                       orient=tk.VERTICAL, 
                                       command=self.tree.yview)
         self.tree.configure(yscrollcommand=tree_scrollbar.set)
         
-        # 添加水平滚动条
-        tree_hscrollbar = ttk.Scrollbar(table_frame, 
-                                       orient=tk.HORIZONTAL, 
-                                       command=self.tree.xview)
-        self.tree.configure(xscrollcommand=tree_hscrollbar.set)
-        
         # 网格布局
-        self.tree.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
-        tree_scrollbar.grid(row=0, column=1, sticky=(tk.N, tk.S))
-        tree_hscrollbar.grid(row=1, column=0, sticky=(tk.W, tk.E))
+        self.tree.grid(row=0, column=0, sticky="nsew")
+        tree_scrollbar.grid(row=0, column=1, sticky="ns")
         
         # 绑定双击事件
         self.tree.bind('<Double-Button-1>', self.on_row_double_click)
@@ -296,52 +336,148 @@ class StockKLineViewerGUI:
         
         return left_frame
     
+    def toggle_left_panel(self):
+        """切换左侧面板显示/隐藏"""
+        if self.left_panel_visible:
+            # 隐藏左侧面板
+            self.left_frame.pack_forget()
+            self.toggle_button.config(text="▶")  # 右箭头
+            self.left_panel_visible = False
+            
+            # 扩展右侧面板
+            self.right_frame.pack_forget()
+            self.right_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 0))
+        else:
+            # 显示左侧面板
+            self.right_frame.pack_forget()
+            
+            # 重新显示左侧面板
+            self.left_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+            self.toggle_button.config(text="◀")  # 左箭头
+            
+            # 重新显示右侧面板
+            self.right_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(3, 0))
+            self.left_panel_visible = True
+        
+        # 更新布局
+        self.content_container.update_idletasks()
+    
     def create_right_panel(self, parent):
         """创建右侧面板"""
         right_frame = ttk.Frame(parent)
-        right_frame.grid(row=1, column=1, sticky=(tk.W, tk.E, tk.N, tk.S))
-        right_frame.columnconfigure(0, weight=1)
-        right_frame.rowconfigure(1, weight=1)
         
-        # 创建工具按钮区域
-        tool_frame = ttk.Frame(right_frame, height=40)
-        tool_frame.grid(row=0, column=0, sticky=(tk.W, tk.E), pady=(0, 5))
-        tool_frame.grid_propagate(False)  # 固定高度
+        # 工具按钮区域
+        tool_frame = ttk.Frame(right_frame, height=35)
+        tool_frame.pack(side=tk.TOP, fill=tk.X, pady=(0, 3))
         
         # 通达信按钮
         self.tdx_button = ttk.Button(tool_frame, text="通达信", 
                                    state='disabled',
-                                   command=self.open_tdx)
-        self.tdx_button.pack(side=tk.LEFT, padx=(0, 10))
+                                   command=self.open_tdx,
+                                   style="Tiny.TButton")
+        self.tdx_button.pack(side=tk.LEFT, padx=(0, 5))
         
         # 同花顺按钮
         self.ths_button = ttk.Button(tool_frame, text="同花顺", 
                                    state='disabled',
-                                   command=self.open_ths)
+                                   command=self.open_ths,
+                                   style="Tiny.TButton")
         self.ths_button.pack(side=tk.LEFT)
         
-        # 创建K线图容器框架
-        kline_frame = ttk.LabelFrame(right_frame, text="K线图", padding="5")
-        kline_frame.grid(row=1, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
-        kline_frame.columnconfigure(0, weight=1)
-        kline_frame.rowconfigure(0, weight=1)
+        # K线图容器框架
+        self.kline_frame = ttk.LabelFrame(right_frame, text="K线图", padding="3")
+        self.kline_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
         
-        # 创建K线图容器
-        self.kline_container = ttk.Frame(kline_frame)
-        self.kline_container.grid(row=0, column=0, 
-                                 sticky=(tk.W, tk.E, tk.N, tk.S), 
-                                 padx=5, pady=5)
-        self.kline_container.columnconfigure(0, weight=1)
-        self.kline_container.rowconfigure(0, weight=1)
+        # K线图容器
+        self.kline_container = ttk.Frame(self.kline_frame)
+        self.kline_container.pack(fill=tk.BOTH, expand=True, padx=3, pady=3)
         
         # 初始提示
         tip_label = ttk.Label(self.kline_container, 
-                             text="双击左侧表格中的任意行查看K线图", 
-                             font=('Arial', 12),
+                             text="双击左侧表格查看K线图", 
+                             font=('Arial', 10),
                              foreground="#666666")
         tip_label.place(relx=0.5, rely=0.5, anchor=tk.CENTER)
         
         return right_frame
+    
+    def show_kline(self, stock_code, focus_date_str):
+        """显示K线图 - 稳定版本，无背景色错误"""
+        try:
+            # 计算日期范围
+            focus_date_obj = datetime.strptime(focus_date_str, "%Y%m%d")
+            start_date = (focus_date_obj - timedelta(days=15)).strftime("%Y%m%d")
+            end_date = (focus_date_obj + timedelta(days=15)).strftime("%Y%m%d")
+            
+            self.status_label.config(
+                text=f"正在加载 {stock_code} 的K线图，关注日期: {focus_date_str}")
+            
+            # 清除现有的K线图
+            for widget in self.kline_container.winfo_children():
+                widget.destroy()
+            
+            # 简单加载提示
+            loading_label = tk.Label(self.kline_container, 
+                                   text=f"正在加载 {stock_code}...", 
+                                   font=('Arial', 10),
+                                   foreground="#666666")
+            loading_label.place(relx=0.5, rely=0.5, anchor=tk.CENTER)
+            
+            # 立即更新界面
+            self.kline_container.update()
+            
+            # 使用延迟创建K线图
+            self.root.after(50, lambda: self._create_kline_after_delay(
+                stock_code, start_date, end_date, focus_date_str, loading_label))
+            
+        except Exception as e:
+            messagebox.showerror("错误", f"无法显示K线图: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    def _create_kline_after_delay(self, stock_code, start_date, end_date, focus_date_str, loading_label):
+        """延迟创建K线图"""
+        try:
+            # 创建K线图查看器
+            self.current_kline_viewer = KLineViewerOptimized(
+                parent=self.kline_container,
+                stock_code=stock_code,
+                start_date=start_date,
+                end_date=end_date,
+                target_date=focus_date_str,
+                is_embedded=True
+            )
+            
+            # 显示嵌入的K线图
+            success = self.current_kline_viewer.show_embedded(self.kline_container)
+            
+            if success:
+                loading_label.destroy()
+                self.status_label.config(
+                    text=f"已显示 {stock_code} 的K线图，关注日期: {focus_date_str}")
+                
+                # 稳定布局调整
+                self._stable_final_adjustment()
+                
+            else:
+                loading_label.config(text="K线图加载失败", foreground="#ff0000")
+                self.status_label.config(text=f"无法加载 {stock_code} 的K线图")
+                
+        except Exception as e:
+            loading_label.config(text=f"加载失败: {str(e)[:30]}", foreground="#ff0000")
+    
+    def _stable_final_adjustment(self):
+        """稳定的最终布局调整"""
+        # 确保K线图尺寸合适
+        if hasattr(self, 'current_kline_viewer') and self.current_kline_viewer:
+            canvas = self.current_kline_viewer.canvas
+            if canvas:
+                canvas_widget = canvas.get_tk_widget()
+                # 设置固定尺寸
+                canvas_widget.config(width=600, height=500)
+        
+        # 延迟重新布局
+        self.root.after(100, self.root.update_idletasks)
     
     def open_tdx(self):
         """打开通达信并自动定位到当前股票"""
@@ -350,13 +486,8 @@ class StockKLineViewerGUI:
             return
         
         stock_code = self.current_stock_code
-        
-        # 更新状态标签引用
         self.tdx_tools.status_label = self.status_label
-        
-        # 调用通达信工具
         success, message = self.tdx_tools.open_tdx(stock_code, self.status_label)
-        
         if not success:
             messagebox.showerror("错误", message)
     
@@ -367,13 +498,8 @@ class StockKLineViewerGUI:
             return
         
         stock_code = self.current_stock_code
-        
-        # 更新状态标签引用
         self.ths_tools.status_label = self.status_label
-        
-        # 调用同花顺工具
         success, message = self.ths_tools.open_ths(stock_code, self.status_label)
-        
         if not success:
             messagebox.showerror("错误", message)
     
@@ -381,15 +507,14 @@ class StockKLineViewerGUI:
         """选择数据文件"""
         file_path = filedialog.askopenfilename(
             title="选择数据文件",
-            filetypes=[
-                ("文本文件", "*.txt"),
-                ("所有文件", "*.*")
-            ]
+            filetypes=[("文本文件", "*.txt"), ("所有文件", "*.*")]
         )
-        
         if file_path:
             self.current_file = file_path
-            self.file_path_var.set(os.path.basename(file_path))
+            filename = os.path.basename(file_path)
+            if len(filename) > 20:
+                filename = filename[:17] + "..."
+            self.file_path_var.set(filename)
             self.load_file()
     
     def load_file(self):
@@ -402,16 +527,16 @@ class StockKLineViewerGUI:
         self.root.update()
         
         success, message = self.parser.parse(self.current_file)
-        
         if success:
             self.data_records = self.parser.data
             self.display_data()
             self.update_stats()
-            self.file_info_label.config(
-                text=f"{os.path.basename(self.current_file)} "
-                    f"({len(self.data_records)} 条记录)")
+            filename = os.path.basename(self.current_file)
+            if len(filename) > 12:
+                filename = filename[:9] + "..."
+            self.file_info_label.config(text=filename)
             self.status_label.config(
-                text=f"数据加载完成: {len(self.data_records)} 条记录")
+                text=f"加载完成: {len(self.data_records)} 条")
         else:
             self.status_label.config(text="数据加载失败")
             messagebox.showerror("错误", message)
@@ -423,21 +548,38 @@ class StockKLineViewerGUI:
         self.stats_text.configure(state='disabled')
     
     def display_data(self, data=None):
-        """在表格中显示数据"""
+        """在表格中显示数据 - 紧凑格式"""
         if data is None:
             data = self.data_records
         
-        # 清空现有数据
         for item in self.tree.get_children():
             self.tree.delete(item)
         
-        # 添加新数据
         for idx, record in enumerate(data, 1):
+            # 紧凑格式化
+            timestamp = str(record['timestamp'])
+            if len(timestamp) > 12:  # 更严格的限制
+                timestamp = timestamp[:9] + "..."
+            
+            stock_code = str(record['stock_code'])
+            if len(stock_code) > 6:
+                stock_code = stock_code[:6]
+            
+            focus_date = str(record['focus_date'])
+            if len(focus_date) > 8:
+                focus_date = focus_date[:8]
+            
+            # 确保总字符数在40左右
+            total_chars = len(str(idx)) + len(timestamp) + len(stock_code) + len(focus_date)
+            
+            if total_chars > 40:
+                timestamp = timestamp[:8] + "..."
+            
             self.tree.insert('', 'end', values=(
                 idx,
-                record['timestamp'],
-                record['stock_code'],
-                record['focus_date']
+                timestamp,
+                stock_code,
+                focus_date
             ))
     
     def update_stats(self):
@@ -446,42 +588,12 @@ class StockKLineViewerGUI:
             self.update_stats_text("无数据")
             return
         
-        # 计算统计信息
         total_records = len(self.data_records)
-        unique_stocks = len(set(record['stock_code'] 
-                               for record in self.data_records))
-        date_range = sorted(set(record['focus_date'] 
-                               for record in self.data_records))
+        unique_stocks = len(set(record['stock_code'] for record in self.data_records))
         
-        if date_range:
-            min_date = min(date_range)
-            max_date = max(date_range)
-        else:
-            min_date = max_date = "N/A"
-        
-        # 统计每个日期的记录数
-        date_counts = {}
-        for record in self.data_records:
-            date = record['focus_date']
-            date_counts[date] = date_counts.get(date, 0) + 1
-        
-        # 显示统计信息
-        stats_text = f"=== 数据统计 ===\n"
-        stats_text += f"总记录数: {total_records}\n"
-        stats_text += f"唯一股票数: {unique_stocks}\n"
-        stats_text += f"日期范围: {min_date} 到 {max_date}\n"
-        stats_text += f"数据文件: {os.path.basename(self.current_file)}\n"
-        
-        stats_text += "=== 日期分布 ===\n"
-        stats_text += "-" * 30 + "\n"
-        
-        # 只显示前20个日期的统计
-        sorted_dates = sorted(date_counts.items(), key=lambda x: x[0])
-        for date, count in sorted_dates[:20]:
-            stats_text += f"{date}: {count} 条记录\n"
-        
-        if len(date_counts) > 20:
-            stats_text += f"... 还有 {len(date_counts) - 20} 个日期\n"
+        stats_text = f"总数: {total_records}\n"
+        stats_text += f"股票: {unique_stocks}\n"
+        stats_text += f"文件: {os.path.basename(self.current_file)[:10]}..."
         
         self.update_stats_text(stats_text)
     
@@ -492,40 +604,33 @@ class StockKLineViewerGUI:
         
         stock_filter = self.stock_filter_var.get().strip()
         date_filter = self.date_filter_var.get().strip()
-        
         filtered_data = self.data_records
         
         if stock_filter:
-            filtered_data = [r for r in filtered_data 
-                            if stock_filter in r['stock_code']]
-        
+            filtered_data = [r for r in filtered_data if stock_filter in r['stock_code']]
         if date_filter:
-            filtered_data = [r for r in filtered_data 
-                            if date_filter in r['focus_date']]
+            filtered_data = [r for r in filtered_data if date_filter in r['focus_date']]
         
         self.display_data(filtered_data)
-        self.status_label.config(
-            text=f"显示 {len(filtered_data)} 条记录 (已过滤)")
+        self.status_label.config(text=f"显示 {len(filtered_data)} 条")
     
     def clear_filter(self):
         """清除过滤条件"""
         self.stock_filter_var.set("")
         self.date_filter_var.set("")
         self.display_data()
-        self.status_label.config(
-            text=f"显示所有 {len(self.data_records)} 条记录")
+        self.status_label.config(text=f"显示所有 {len(self.data_records)} 条")
     
     def on_row_double_click(self, event):
         """双击行事件"""
         if not self.data_records:
             messagebox.showinfo("提示", "请先加载数据文件")
             return
-            
+        
         selection = self.tree.selection()
         if not selection:
             return
         
-        # 获取选中行的数据
         item = self.tree.item(selection[0])
         values = item['values']
         
@@ -533,74 +638,17 @@ class StockKLineViewerGUI:
             stock_code = str(values[2])
             focus_date_str = str(values[3])
             
-            # 保存当前选择的股票代码
             self.current_stock_code = stock_code
             self.current_focus_date = focus_date_str
             
-            # 启用外部软件按钮
             self.tdx_button.config(state='normal')
             self.ths_button.config(state='normal')
             
-            # 验证日期格式
             if not (len(focus_date_str) == 8 and focus_date_str.isdigit()):
-                messagebox.showwarning("警告", 
-                    f"日期格式错误: {focus_date_str}，"
-                    f"应为8位数字格式(YYYYMMDD)")
+                messagebox.showwarning("警告", f"日期格式错误: {focus_date_str}")
                 return
             
-            # 在主线程中打开K线图
             self.show_kline(stock_code, focus_date_str)
-    
-    def show_kline(self, stock_code, focus_date_str):
-        """显示K线图"""
-        try:
-            # 计算日期范围（关注日期前后各15天）
-            focus_date_obj = datetime.strptime(focus_date_str, "%Y%m%d")
-            start_date = (focus_date_obj - timedelta(days=15)).strftime(
-                "%Y%m%d")
-            end_date = (focus_date_obj + timedelta(days=15)).strftime(
-                "%Y%m%d")
-            
-            # 更新状态
-            self.status_label.config(
-                text=f"正在加载 {stock_code} 的K线图，"
-                f"关注日期: {focus_date_str}")
-            self.root.update()
-            
-            # 清除现有的K线图
-            for widget in self.kline_container.winfo_children():
-                widget.destroy()
-            
-            # 创建K线图查看器（嵌入模式）
-            self.current_kline_viewer = KLineViewerOptimized(
-                parent=self.kline_container,
-                stock_code=stock_code,
-                start_date=start_date,
-                end_date=end_date,
-                target_date=focus_date_str,
-                is_embedded=True
-            )
-            
-            # 显示嵌入的K线图
-            success = self.current_kline_viewer.show_embedded(
-                self.kline_container)
-            
-            if success:
-                self.status_label.config(
-                    text=f"已显示 {stock_code} 的K线图，"
-                    f"关注日期: {focus_date_str}")
-            else:
-                self.status_label.config(
-                    text=f"无法加载 {stock_code} 的K线图")
-                messagebox.showerror("错误", 
-                    f"无法加载 {stock_code} 的K线图数据")
-                
-        except ValueError as e:
-            messagebox.showerror("错误", f"日期格式错误: {e}")
-        except Exception as e:
-            messagebox.showerror("错误", f"无法显示K线图: {e}")
-            import traceback
-            traceback.print_exc()
     
     def run(self):
         """运行应用程序"""
@@ -609,7 +657,6 @@ class StockKLineViewerGUI:
 
 def main():
     """主函数"""
-    # 检查是否安装了必要的库
     try:
         import pygetwindow
         print("已安装窗口管理模块: pygetwindow")
@@ -626,7 +673,6 @@ def main():
         print("请运行: pip install pyautogui")
         return
     
-    # 创建并运行GUI应用程序
     app = StockKLineViewerGUI()
     app.run()
 
