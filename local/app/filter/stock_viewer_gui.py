@@ -208,10 +208,10 @@ class StockKLineViewerGUI:
         # 确保左侧面板宽度合适
         if hasattr(self, 'tree'):
             # 动态调整列宽
-            self.tree.column('#1', width=25)  # 序号
-            self.tree.column('#2', width=60)  # 时间
-            self.tree.column('#3', width=40)  # 代码
-            self.tree.column('#4', width=60)  # 日期
+            self.tree.column('#1', width=5)  # 序号
+            self.tree.column('#2', width=25)  # 时间
+            self.tree.column('#3', width=15)  # 代码
+            self.tree.column('#4', width=15)  # 日期
     
     def create_left_panel(self, parent):
         """创建左侧面板 - 进一步缩小，添加隐藏功能"""
@@ -311,7 +311,7 @@ class StockKLineViewerGUI:
                                 show='headings', height=10)
         
         # 定义列 - 进一步减小宽度
-        col_widths = [25, 60, 40, 60]  # 总宽度185像素
+        col_widths = [5, 25, 15, 15]  # 总宽度185像素
         for idx, col in enumerate(columns):
             self.tree.heading(col, text=col, anchor='center')
             self.tree.column(col, width=col_widths[idx], anchor='center', 

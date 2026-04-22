@@ -4,6 +4,11 @@ __pycache__/       """Python 文件编译后的缓存目录。git上传时会忽
 
 *.xlsx
 *.xlsm
+*.doc
+*.docx
+*.ppt
+*.pptx
+*.pdf
 
 *.exe
 *.rar
