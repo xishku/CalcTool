@@ -28,13 +28,15 @@ sys.path.append(SDK_PATH)
 
 from CalcTool.sdk.logger import Logger
 from CalcTool.sdk.tdx_data_agent import TdxDataAgent
+import pyautogui
+import pygetwindow as gw
 
 # PyQt6导入
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QSplitter, QWidget, QVBoxLayout,
     QHBoxLayout, QTableWidget, QTableWidgetItem, QAbstractItemView,
     QMenu, QLabel, QStatusBar, QFileDialog, QMessageBox, QHeaderView,
-    QSizePolicy, QGraphicsDropShadowEffect
+    QSizePolicy, QGraphicsDropShadowEffect, QPushButton, QScrollArea
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QSize, QTimer, QPoint
 from PyQt6.QtGui import QAction, QFont, QColor, QPalette, QIcon, QCursor
@@ -1435,7 +1437,38 @@ class MainWindow(QMainWindow):
         self.list_panel = ListPanel()
         splitter.addWidget(self.list_panel)
 
-        from PyQt6.QtWidgets import QScrollArea
+        # 右侧：工具栏 + K线画布
+        right_widget = QWidget()
+        right_layout = QVBoxLayout(right_widget)
+        right_layout.setContentsMargins(0, 0, 0, 0)
+        right_layout.setSpacing(0)
+
+        # 顶部工具栏
+        toolbar_layout = QHBoxLayout()
+        toolbar_layout.setContentsMargins(8, 4, 8, 4)
+        toolbar_layout.setSpacing(6)
+
+        self.btn_jump_ths = QPushButton("同花顺")
+        self.btn_jump_ths.setFixedHeight(28)
+        self.btn_jump_ths.setFixedWidth(72)
+        self.btn_jump_ths.setToolTip("跳转到同花顺查看当前股票")
+        self.btn_jump_ths.setStyleSheet(
+            f"QPushButton{{background:{COLOR_BG_TERTIARY};"
+            f"color:{COLOR_TEXT_PRIMARY};border:1px solid {COLOR_SELECTION};"
+            f"border-radius:4px;padding:2px 8px;font-size:12px;}}"
+            f"QPushButton:hover{{background:{COLOR_SELECTION};}}"
+            f"QPushButton:pressed{{background:{COLOR_BG_TERTIARY};}}")
+        toolbar_layout.addWidget(self.btn_jump_ths)
+        toolbar_layout.addStretch()
+
+        toolbar_widget = QWidget()
+        toolbar_widget.setLayout(toolbar_layout)
+        toolbar_widget.setFixedHeight(36)
+        toolbar_widget.setStyleSheet(
+            f"background:{COLOR_BG_SECONDARY};"
+            f"border-bottom:1px solid {COLOR_BG_TERTIARY};")
+        right_layout.addWidget(toolbar_widget)
+
         scroll_area = QScrollArea()
         scroll_area.setWidgetResizable(True)
         scroll_area.setStyleSheet(
@@ -1443,7 +1476,9 @@ class MainWindow(QMainWindow):
 
         self.kline_canvas = KlineCanvas()
         scroll_area.setWidget(self.kline_canvas)
-        splitter.addWidget(scroll_area)
+        right_layout.addWidget(scroll_area)
+
+        splitter.addWidget(right_widget)
 
         splitter.setSizes([LIST_PANEL_FIXED_WIDTH,
                           self.window_size[0] - LIST_PANEL_FIXED_WIDTH])
@@ -1552,6 +1587,8 @@ class MainWindow(QMainWindow):
         self.kline_canvas.focus_changed.connect(self._on_focus_changed)
 
         self.kline_canvas.export_requested.connect(self._on_export_png)
+
+        self.btn_jump_ths.clicked.connect(self._on_jump_ths)
 
     def _on_open_file(self) -> None:
         """打开文件对话框"""
@@ -1719,6 +1756,63 @@ class MainWindow(QMainWindow):
             "PNG图片 (*.png);;所有文件 (*)")
         if save_path:
             self.kline_canvas.export_png(save_path)
+
+    def _on_jump_ths(self) -> None:
+        """跳转到同花顺查看当前股票"""
+        if not self.current_symbol:
+            self.status_label.setText("请先选择股票")
+            return
+
+        padded_code = self.current_symbol.zfill(6)
+        self.status_label.setText(f"正在跳转同花顺 {padded_code}...")
+
+        try:
+            # 1. 查找同花顺窗口
+            ths_window = None
+            for window in gw.getAllWindows():
+                if window.title:
+                    for keyword in ["同花顺", "THS", "hexin"]:
+                        if keyword in window.title:
+                            ths_window = window
+                            break
+                if ths_window:
+                    break
+
+            if not ths_window:
+                self.status_label.setText(
+                    f"未找到同花顺窗口，请先打开同花顺再输入 {padded_code}")
+                QMessageBox.information(
+                    self, "同花顺跳转",
+                    f"未找到同花顺窗口，请先打开同花顺再输入 {padded_code}")
+                return
+
+            # 2. 激活窗口
+            try:
+                ths_window.activate()
+                if ths_window.isMinimized:
+                    ths_window.restore()
+                time.sleep(0.5)
+            except Exception:
+                self.status_label.setText("同花顺已打开，但无法激活窗口")
+                QMessageBox.information(
+                    self, "同花顺跳转", "同花顺已打开，但无法激活窗口")
+                return
+
+            # 3. 输入股票代码并定位
+            time.sleep(1)
+            pyautogui.typewrite(padded_code)
+            time.sleep(0.5)
+            pyautogui.press('enter')
+            time.sleep(2)
+            pyautogui.press('f5')
+            time.sleep(1)
+
+            self.status_label.setText(
+                f"已在同花顺中定位到 {padded_code} 的日K线")
+
+        except Exception as e:
+            self.status_label.setText(f"跳转失败: {e}")
+            QMessageBox.warning(self, "同花顺跳转失败", str(e))
 
     def _show_about(self) -> None:
         """关于对话框"""
