@@ -6,7 +6,7 @@
 纯GUI操作的桌面应用，为研究员提供从文件导入观察点，
 在K线图上快速回看"关注日期"前后行情走势的交互式分析。
 
-文档编号：SRS-STOCK-REVIEW-V0.6
+文档编号：SRS-STOCK-REVIEW-V0.7
 """
 
 # ==================== 导入区 ====================
@@ -378,6 +378,8 @@ class ViewportController:
         self.total_bars = total_bars
         self.visible_count = DEFAULT_VISIBLE_BARS
         self.focus_index = total_bars // 2
+        self.view_start: int = 0
+        self._max_view_end: int = total_bars  # 视窗右边界上限，初始限制在焦点日
         self._clamp_view()
 
     def set_total_bars(self, count: int) -> None:
@@ -385,12 +387,42 @@ class ViewportController:
         self.total_bars = max(count, 1)
         if self.focus_index >= self.total_bars:
             self.focus_index = self.total_bars - 1
+        # 初始时焦点日在末尾，视窗右边界不超过焦点日
+        self.view_start = max(0, self.focus_index + 1 - self.visible_count)
+        self._max_view_end = self.focus_index + 1
         self._clamp_view()
 
     def set_focus_by_index(self, index: int) -> None:
-        """设置焦点索引（自动居中）"""
+        """设置焦点索引，视窗自动跟随
+        
+        初始时焦点日在视窗末尾（显示前50根）。
+        右移超出视窗时自动扩展；左移超出时自动收缩。
+        """
         self.focus_index = max(0, min(index, self.total_bars - 1))
-        self._center_on_focus()
+        # 重置右边界限制：焦点日之后的日期不默认显示
+        self._max_view_end = self.focus_index + 1
+        self._follow_focus()
+
+    def set_focus_without_move(self, index: int) -> None:
+        """设置焦点索引但不移动视窗（仅更新十字光标位置）
+        
+        用于鼠标单击、键盘左移等场景：只切换十字光标，
+        不改变可视区间位置，不重置右边界限制。
+        如果焦点超出当前可视范围，则视窗跟随到焦点可见。
+        """
+        self.focus_index = max(0, min(index, self.total_bars - 1))
+        start, end = self.get_visible_range()
+        # 焦点仍在可视范围内，无需移动
+        if start <= self.focus_index < end:
+            return
+        # 焦点超出可视范围，视窗跟随但不重置_max_view_end
+        if self.focus_index >= end:
+            # 右移超出：扩展右边界
+            self._max_view_end = self.focus_index + 1
+            self.view_start = max(0, self.focus_index + 1 - self.visible_count)
+        elif self.focus_index < start:
+            # 左移超出：视窗左移
+            self.view_start = self.focus_index
 
     def set_focus_by_date(self, date_val: int, dates: List[int]) -> bool:
         """根据日期值定位焦点，返回是否成功找到"""
@@ -417,57 +449,84 @@ class ViewportController:
         """放大（减少可见K线数）"""
         self.visible_count = max(MIN_VISIBLE_BARS,
                                  int(self.visible_count * factor))
-        self._center_on_focus()
+        self._follow_focus()
 
     def zoom_out(self, factor: float = 1.25) -> None:
         """缩小（增加可见K线数）"""
         self.visible_count = min(MAX_VISIBLE_BARS,
                                  int(self.visible_count * factor))
-        self._center_on_focus()
+        self._follow_focus()
 
     def pan_left(self, bars: int = 10) -> None:
         """向左平移"""
-        new_center = max(0, self.focus_index - bars)
-        self.focus_index = new_center
-        self._center_on_focus()
+        self.view_start = max(0, self.view_start - bars)
+        self.focus_index = min(self.focus_index,
+                               self.view_start + self.visible_count - 1)
+        self._follow_focus()
 
     def pan_right(self, bars: int = 10) -> None:
         """向右平移"""
-        new_center = min(self.total_bars - 1, self.focus_index + bars)
-        self.focus_index = new_center
-        self._center_on_focus()
+        new_start = self.view_start + bars
+        max_start = max(0, self.total_bars - self.visible_count)
+        self.view_start = min(new_start, max_start)
+        self.focus_index = max(self.focus_index, self.view_start)
+        self._follow_focus()
 
     def move_focus_prev(self) -> int:
         """焦点前移一根，返回新索引"""
         if self.focus_index > 0:
             self.focus_index -= 1
-            self._center_on_focus()
+            self._follow_focus()
         return self.focus_index
 
     def move_focus_next(self) -> int:
         """焦点后移一根，返回新索引"""
         if self.focus_index < self.total_bars - 1:
             self.focus_index += 1
-            self._center_on_focus()
+            self._follow_focus()
         return self.focus_index
 
     def get_visible_range(self) -> Tuple[int, int]:
-        """返回可视区间 (start_idx, end_idx)"""
-        half = self.visible_count // 2
-        start = max(0, self.focus_index - half)
-        end = min(self.total_bars, start + self.visible_count)
+        """返回可视区间 (start_idx, end_idx)
+        
+        基于view_start和visible_count计算，右边界不超过_max_view_end。
+        默认_max_view_end=focus_index+1，即不显示焦点日之后的日期。
+        """
+        end = min(self.total_bars, self.view_start + self.visible_count,
+                  self._max_view_end)
+        start = max(0, end - self.visible_count)
         if end - start < self.visible_count:
-            start = max(0, end - self.visible_count)
+            end = min(self.total_bars, start + self.visible_count,
+                      self._max_view_end)
         return start, end
 
     def reset(self) -> None:
-        """重置为默认视图"""
+        """重置为默认视图：焦点日在末尾，不显示焦点日之后"""
         self.visible_count = DEFAULT_VISIBLE_BARS
-        self._center_on_focus()
+        self._max_view_end = self.focus_index + 1
+        self.view_start = max(0, self.focus_index + 1 - self.visible_count)
+        self._follow_focus()
 
     def _center_on_focus(self) -> None:
-        """将焦点居中于可视区间"""
+        """将焦点定位到可视区间（委托给_follow_focus）"""
+        self._follow_focus()
+
+    def _follow_focus(self) -> None:
+        """视窗跟随焦点：确保焦点在可视范围内
+        
+        初始加载：焦点日在视窗末尾（显示前50根），不显示焦点日之后的日期。
+        右移超出：扩展_max_view_end，视窗跟随右移，显示焦点日之后的日期。
+        左移超出：视窗跟随左移。
+        """
         self._clamp_view()
+        start, end = self.get_visible_range()
+        # 焦点在视窗右侧之外 → 扩展右边界，视窗右移使焦点在末尾
+        if self.focus_index >= end:
+            self._max_view_end = self.focus_index + 1
+            self.view_start = max(0, self.focus_index + 1 - self.visible_count)
+        # 焦点在视窗左侧之外 → 左移视窗使焦点在起始
+        elif self.focus_index < start:
+            self.view_start = self.focus_index
 
     def _clamp_view(self) -> None:
         """确保视窗参数在合法范围内"""
@@ -484,8 +543,7 @@ class PopupWidget(QWidget):
     def __init__(self, parent: Optional[QWidget] = None):
         super().__init__(parent)
         self.setWindowFlags(Qt.WindowType.Tool |
-                            Qt.WindowType.FramelessWindowHint |
-                            Qt.WindowType.WindowStaysOnTopHint)
+                            Qt.WindowType.FramelessWindowHint)
         self.setFixedSize(170, 145)
         self._data: Optional[Dict] = None
         self._drag_pos: Optional[QPoint] = None
@@ -637,6 +695,7 @@ class KlineCanvas(FigureCanvas):
 
     bar_clicked = pyqtSignal(int)
     bar_double_clicked = pyqtSignal(int)
+    focus_changed = pyqtSignal(int)
     zoom_changed = pyqtSignal(str)
     export_requested = pyqtSignal()
 
@@ -644,8 +703,8 @@ class KlineCanvas(FigureCanvas):
         self.fig = Figure(figsize=(12, 6),
                           dpi=100,
                           facecolor=COLOR_BG_PRIMARY)
-        # 主图：K线+MA
-        self.ax_main = self.fig.add_axes([0.08, 0.45, 0.88, 0.42])
+        # 主图：K线+MA（底部留20px空白给日期标签和附图之间的间距）
+        self.ax_main = self.fig.add_axes([0.08, 0.47, 0.88, 0.40])
         # 成交量附图
         self.ax_vol = self.fig.add_axes([0.08, 0.28, 0.88, 0.14])
         # MACD附图
@@ -661,6 +720,8 @@ class KlineCanvas(FigureCanvas):
         self.df_indicator: Optional[pd.DataFrame] = None
         self.viewport = ViewportController()
         self.focus_date_val: int = 0
+        self._symbol_display: str = ''
+        self._list_panel_width: int = LIST_PANEL_FIXED_WIDTH
 
         self.selected_index: Optional[int] = None
         self.crosshair_visible = False
@@ -687,10 +748,12 @@ class KlineCanvas(FigureCanvas):
         self.fig.patch.set_facecolor(COLOR_BG_PRIMARY)
 
     def load_and_draw(self, df: pd.DataFrame,
-                      focus_date: int) -> Optional[int]:
+                      focus_date: int,
+                      symbol: str = '') -> Optional[int]:
         """加载带指标的DataFrame并绘制K线图，返回焦点索引"""
         self.df_indicator = df
         self.focus_date_val = focus_date
+        self._symbol_display = symbol
         dates = df['r_date'].tolist()
 
         self.viewport.set_total_bars(len(dates))
@@ -712,11 +775,31 @@ class KlineCanvas(FigureCanvas):
         self.selected_index = None
         self._draw_chart()
 
+    def _adjust_axes_layout(self) -> None:
+        """根据画布实际宽度动态调整axes左边距，使主图与左侧列表对齐"""
+        canvas_w = self.width()
+        if canvas_w <= 0:
+            return
+        # 计算列表宽度在画布中的占比
+        total_w = canvas_w + self._list_panel_width
+        left_frac = self._list_panel_width / total_w
+        # 保留价格轴标签空间（约40px）
+        axis_label_frac = 40 / canvas_w
+        left_frac = left_frac - axis_label_frac
+        left_frac = max(0.05, min(0.20, left_frac))
+        right_frac = 0.96
+        width_frac = right_frac - left_frac
+        self.ax_main.set_position([left_frac, 0.47, width_frac, 0.40])
+        self.ax_vol.set_position([left_frac, 0.28, width_frac, 0.14])
+        self.ax_macd.set_position([left_frac, 0.08, width_frac, 0.16])
+
     def _draw_chart(self) -> None:
         """核心绑定方法：执行全量绑制"""
         if self.df_indicator is None or self.df_indicator.empty:
             self._clear_axes()
             return
+
+        self._adjust_axes_layout()
 
         df = self.df_indicator
         start_idx, end_idx = self.viewport.get_visible_range()
@@ -731,7 +814,16 @@ class KlineCanvas(FigureCanvas):
         ax_vol = self.ax_vol
         ax_macd = self.ax_macd
 
-        self._draw_candles(ax_m, view_df, n)
+        # 顶部显示股票代码和焦点日期
+        title_text = (f"{self._symbol_display}  "
+                      f"关注日: {self.focus_date_val}"
+                      if self._symbol_display else "")
+        if title_text:
+            ax_m.set_title(title_text, fontsize=11, fontweight='bold',
+                           color=COLOR_TEXT_PRIMARY, loc='left',
+                           pad=6)
+
+        self._draw_candles(ax_m, view_df, n, start_idx)
 
         ma_colors = {5: COLOR_MA5, 10: COLOR_MA10,
                      20: COLOR_MA20, 60: COLOR_MA60}
@@ -785,7 +877,8 @@ class KlineCanvas(FigureCanvas):
 
         self.draw()
 
-    def _draw_candles(self, ax, view_df: pd.DataFrame, n: int) -> None:
+    def _draw_candles(self, ax, view_df: pd.DataFrame,
+                      n: int, start_idx: int = 0) -> None:
         """绘制OHLC蜡烛图"""
         for i in range(n):
             row = view_df.iloc[i]
@@ -809,26 +902,33 @@ class KlineCanvas(FigureCanvas):
             ax.plot([i, i], [l, h], color=color,
                     linewidth=0.7, alpha=0.85)
 
-        # 显示阶段最高/最低价
+        # 显示阶段最高/最低价：使用box上下小提示，不使用完整横线
         valid_high = view_df['r_high'].dropna()
         valid_low = view_df['r_low'].dropna()
         if not valid_high.empty:
             max_price = valid_high.max()
-            max_idx = valid_high.idxmax()
-            ax.axhline(y=max_price, color=COLOR_RED_UP,
-                       linestyle=':', linewidth=0.8, alpha=0.6)
-            ax.annotate(f'最高 {max_price:.2f}',
-                        xy=(n - 1, max_price),
-                        xytext=(5, 0), textcoords='offset points',
-                        color=COLOR_RED_UP, fontsize=7, va='bottom')
+            max_rel_idx = valid_high.idxmax() - start_idx
+            if 0 <= max_rel_idx < n:
+                ax.annotate(f'{max_price:.2f}',
+                            xy=(max_rel_idx, max_price),
+                            xytext=(0, 5), textcoords='offset points',
+                            color=COLOR_RED_UP, fontsize=7, fontweight='bold',
+                            ha='center', va='bottom',
+                            bbox=dict(boxstyle='round,pad=0.2',
+                                      facecolor=COLOR_BG_SECONDARY,
+                                      edgecolor=COLOR_RED_UP, alpha=0.8))
         if not valid_low.empty:
             min_price = valid_low.min()
-            ax.axhline(y=min_price, color=COLOR_GREEN_DOWN,
-                       linestyle=':', linewidth=0.8, alpha=0.6)
-            ax.annotate(f'最低 {min_price:.2f}',
-                        xy=(n - 1, min_price),
-                        xytext=(5, 0), textcoords='offset points',
-                        color=COLOR_GREEN_DOWN, fontsize=7, va='top')
+            min_rel_idx = valid_low.idxmin() - start_idx
+            if 0 <= min_rel_idx < n:
+                ax.annotate(f'{min_price:.2f}',
+                            xy=(min_rel_idx, min_price),
+                            xytext=(0, -5), textcoords='offset points',
+                            color=COLOR_GREEN_DOWN, fontsize=7, fontweight='bold',
+                            ha='center', va='top',
+                            bbox=dict(boxstyle='round,pad=0.2',
+                                      facecolor=COLOR_BG_SECONDARY,
+                                      edgecolor=COLOR_GREEN_DOWN, alpha=0.8))
 
     def _draw_volume(self, ax, view_df: pd.DataFrame, n: int) -> None:
         """绘制成交量柱状图"""
@@ -963,8 +1063,18 @@ class KlineCanvas(FigureCanvas):
             self.zoom_out()
 
     def select_bar(self, index: int, show_crosshair: bool = True,
-                   show_popup: bool = False) -> None:
-        """选中某根K线：显示十字光标，Popup可选"""
+                   show_popup: bool = False,
+                   avoid_occlude: bool = False,
+                   allow_view_move: bool = False) -> None:
+        """选中某根K线：显示十字光标，Popup可选
+        
+        Args:
+            index: K线索引
+            show_crosshair: 是否显示十字光标
+            show_popup: 是否显示Popup
+            avoid_occlude: 是否避免Popup遮挡K线（单击时避开，双击时直接显示）
+            allow_view_move: 是否允许视窗跟随移动（右移扩展时需要）
+        """
         start_idx, end_idx = self.viewport.get_visible_range()
         if index < 0 or index >= self.viewport.total_bars:
             return
@@ -972,9 +1082,12 @@ class KlineCanvas(FigureCanvas):
         self.selected_index = index
         self.crosshair_visible = show_crosshair
 
-        self.viewport.set_focus_by_index(index)
+        if allow_view_move:
+            self.viewport.set_focus_by_index(index)
+        else:
+            self.viewport.set_focus_without_move(index)
 
-        # 只在明确要求时显示Popup（左键单击不显示，避免遮挡K线）
+        # 只在明确要求时显示Popup
         if show_popup and show_crosshair and self.df_indicator is not None:
             if 0 <= index < len(self.df_indicator):
                 row = self.df_indicator.iloc[index]
@@ -994,16 +1107,29 @@ class KlineCanvas(FigureCanvas):
 
                 # popup作为canvas子窗口，使用相对坐标
                 canvas_rect = self.geometry()
-                # 图表左边距大约20px
                 chart_left_offset = 20
-                # popup高度145px，底部留15px边距
                 popup_bottom_offset = 160
 
-                # 焦点在可视区域右侧时，popup显示在左边；反之显示在右边
-                if rel_idx > visible_count * 0.6:
-                    px = chart_left_offset
+                if avoid_occlude:
+                    # 单击模式：Popup避开遮挡选中K线
+                    # K线在可视区域左侧 → Popup显示在右侧
+                    # K线在可视区域右侧 → Popup显示在左侧
+                    if rel_idx < visible_count * 0.4:
+                        px = chart_left_offset + int(
+                            canvas_rect.width() * 0.55)
+                    elif rel_idx > visible_count * 0.6:
+                        px = chart_left_offset
+                    else:
+                        # K线在中间 → Popup显示在右侧
+                        px = chart_left_offset + int(
+                            canvas_rect.width() * 0.55)
                 else:
-                    px = chart_left_offset + int(canvas_rect.width() * 0.5)
+                    # 双击模式：直接显示详细Popup
+                    if rel_idx > visible_count * 0.6:
+                        px = chart_left_offset
+                    else:
+                        px = chart_left_offset + int(
+                            canvas_rect.width() * 0.5)
                 py = canvas_rect.height() - popup_bottom_offset
                 self.popup.show_data(px, py, popup_data)
 
@@ -1071,8 +1197,8 @@ class KlineCanvas(FigureCanvas):
         if new_idx < 0:
             new_idx = 0
 
-        self.viewport.set_focus_by_index(new_idx)
-        self.select_bar(new_idx, show_popup=True)
+        self.select_bar(new_idx, show_popup=True, avoid_occlude=True)
+        self.focus_changed.emit(new_idx)
         return new_idx
 
     def move_focus_next(self) -> Optional[int]:
@@ -1090,8 +1216,8 @@ class KlineCanvas(FigureCanvas):
         if new_idx >= self.viewport.total_bars:
             new_idx = self.viewport.total_bars - 1
 
-        self.viewport.set_focus_by_index(new_idx)
-        self.select_bar(new_idx, show_popup=True)
+        self.select_bar(new_idx, show_popup=True, avoid_occlude=True)
+        self.focus_changed.emit(new_idx)
         return new_idx
 
     def export_png(self, save_path: str) -> None:
@@ -1204,7 +1330,7 @@ class ListPanel(QWidget):
             f"background-color:{COLOR_BG_PRIMARY};"
             f"alternate-background-color:{COLOR_BG_SECONDARY};"
             f"color:{COLOR_TEXT_SECONDARY};"
-            f"grid-color:{COLOR_BG_TERTIARY};"
+            f"outline-color:{COLOR_BG_TERTIARY};"
             f"border:none;"
             f"font-size:11px;}}"
             f"QTableWidget::item:selected{{"
@@ -1423,6 +1549,7 @@ class MainWindow(QMainWindow):
         self.kline_canvas.bar_clicked.connect(self._on_bar_clicked)
         self.kline_canvas.bar_double_clicked.connect(
             self._on_bar_double_clicked)
+        self.kline_canvas.focus_changed.connect(self._on_focus_changed)
 
         self.kline_canvas.export_requested.connect(self._on_export_png)
 
@@ -1509,13 +1636,15 @@ class MainWindow(QMainWindow):
             return
 
         df_calc = IndicatorCalc.calc_all(df)
+        self.kline_canvas._list_panel_width = self.list_panel.width()
         focus_idx = self.kline_canvas.load_and_draw(
-            df_calc, self.current_focus_date)
+            df_calc, self.current_focus_date, symbol=self.current_symbol)
         self.status_label.setText(f"就绪 | {symbol} | {len(df)} 根K线")
 
-        # 数据加载后显示Popup
+        # 数据加载后显示Popup（避开遮挡）
         if focus_idx is not None:
-            self.kline_canvas.select_bar(focus_idx, show_popup=True)
+            self.kline_canvas.select_bar(
+                focus_idx, show_popup=True, avoid_occlude=True)
 
         # 设置键盘焦点到主窗口
         self.setFocus()
@@ -1533,11 +1662,12 @@ class MainWindow(QMainWindow):
             f'无法加载 {symbol} 的行情数据:\n{err_msg}')
 
     def _on_bar_clicked(self, index: int) -> None:
-        """K线单击处理"""
-        self.kline_canvas.select_bar(index, show_popup=True)
+        """K线单击处理：设临时焦点日期，显示十字光标，Popup避开遮挡"""
+        self.kline_canvas.select_bar(index, show_popup=True,
+                                     avoid_occlude=True)
 
     def _on_bar_double_clicked(self, index: int) -> None:
-        """K线双击处理：更新关注日，同步列表，显示Popup"""
+        """K线双击处理：更新关注日，同步列表选中，显示Popup详细指标"""
         if self.kline_canvas.df_indicator is None:
             return
         row = self.kline_canvas.df_indicator.iloc[index]
@@ -1548,6 +1678,7 @@ class MainWindow(QMainWindow):
         # 双击显示详细Popup
         self.kline_canvas.select_bar(index, show_popup=True)
 
+        # 同步更新列表中同标的的关注日期显示
         for i, ld in enumerate(self.list_data):
             sym = str(ld[1]).zfill(6)
             if sym == self.current_symbol:
@@ -1555,10 +1686,29 @@ class MainWindow(QMainWindow):
                 if item:
                     item.setText(str(new_fd))
 
+        # 同步列表选中到当前行
+        for i, ld in enumerate(self.list_data):
+            sym = str(ld[1]).zfill(6)
+            fd = int(ld[2]) if ld[2] else 0
+            if sym == self.current_symbol and fd == new_fd:
+                self.list_panel.select_row(i)
+                break
+
         self.info_label.setText(
             f"{self.current_symbol} | {new_fd}")
         Logger.log().info(
             f"双击更新关注日: {self.current_symbol} → {new_fd}")
+
+    def _on_focus_changed(self, index: int) -> None:
+        """键盘←/→焦点变更：更新关注日和状态栏"""
+        if self.kline_canvas.df_indicator is None:
+            return
+        if 0 <= index < len(self.kline_canvas.df_indicator):
+            row = self.kline_canvas.df_indicator.iloc[index]
+            new_fd = int(row['r_date'])
+            self.current_focus_date = new_fd
+            self.info_label.setText(
+                f"{self.current_symbol} | {new_fd}")
 
     def _on_export_png(self) -> None:
         """导出PNG"""
@@ -1574,7 +1724,7 @@ class MainWindow(QMainWindow):
         """关于对话框"""
         QMessageBox.about(
             self, "关于",
-            "<h3>股票回看分析工具 v0.3</h3>"
+            "<h3>股票回看分析工具 v0.7</h3>"
             "<p>提供K线历史回放与分析功能</p>"
             "<p>基于PyQt6 + matplotlib</p>"
             "<p>文档编号: SRS-STOCK-REVIEW-V0.7</p>")
