@@ -1827,10 +1827,11 @@ class MainWindow(QMainWindow):
         """全局键盘事件分发"""
         key = event.key()
 
-        # 左右键和ESC键优先让KlineCanvas处理
+        # 左右键和ESC键直接转发给KlineCanvas处理，无需点击获取焦点
         if key in (Qt.Key.Key_Left, Qt.Key.Key_Right, Qt.Key.Key_Escape):
-            super().keyPressEvent(event)
-            return
+            self.kline_canvas.keyPressEvent(event)
+            if event.isAccepted():
+                return
 
         if key == Qt.Key.Key_Up:
             cur_row = self.list_panel.current_row()
