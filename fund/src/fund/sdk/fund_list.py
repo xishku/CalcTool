@@ -1,7 +1,7 @@
 import requests
 import re
 import ast
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Generator
 
 class FundList:
     def fetch_fund_data(self, url: str) -> str:
@@ -85,8 +85,10 @@ class FundList:
                     'type': item[3],
                     'pinyin': item[4]
                 }
-                structured_data.append(fund)
-        return structured_data
+
+                yield fund
+        #         structured_data.append(fund)
+        # return structured_data
 
     def get_fund_structured_list(self):
         """
@@ -108,15 +110,8 @@ class FundList:
             print(f"解析成功，共{len(raw_list)}条基金数据")
             
             # 转换为结构化数据
-            structured_data = self.convert_to_structured_data(raw_list)
-            
-            # 打印前5条数据作为示例
-            # print("\n前5条基金数据:")
-            # for i, fund in enumerate(structured_data, 1):
-            #     print(f"{i}. 代码: {fund['code']}, 简称: {fund['short_name']}, 全称: {fund['full_name']}, 类型: {fund['type']}")
-                
-            return structured_data
-            
+            yield from self.convert_to_structured_data(raw_list)
+           
         except Exception as e:
             print(f"处理过程中出错: {e}")
             return []

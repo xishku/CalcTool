@@ -36,17 +36,17 @@ from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QSplitter, QWidget, QVBoxLayout,
     QHBoxLayout, QTableWidget, QTableWidgetItem, QAbstractItemView,
     QMenu, QLabel, QStatusBar, QFileDialog, QMessageBox, QHeaderView,
-    QSizePolicy, QGraphicsDropShadowEffect, QPushButton, QScrollArea
+    QSizePolicy, QGraphicsDropShadowEffect, QPushButton, QScrollArea,
+    QSpinBox
 )
-from PyQt6.QtCore import Qt, QThread, pyqtSignal, QSize, QTimer, QPoint
-from PyQt6.QtGui import QAction, QFont, QColor, QPalette, QIcon, QCursor
+from PyQt6.QtCore import Qt, QThread, pyqtSignal, QPoint
+from PyQt6.QtGui import QAction, QFont, QColor, QCursor
 
 # Matplotlib导入与PyQt6集成
 import matplotlib
 matplotlib.use('QtAgg')
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
-from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as NavigationToolbar
 from matplotlib.figure import Figure
 import matplotlib.patches as mpatches
 from matplotlib.lines import Line2D
@@ -68,7 +68,6 @@ LIST_PANEL_FIXED_WIDTH = 225
 LIST_COL_DATETIME = 0
 LIST_COL_SYMBOL = 1
 LIST_COL_FOCUS_DATE = 2
-LIST_HEADER_LABELS = ['日期时间', '股票代码', '关注日期']
 
 # K线画布常量
 CHART_HEIGHT = 500
@@ -85,6 +84,11 @@ MA_PERIODS = [5, 10, 20, 60]
 MACD_FAST = 12
 MACD_SLOW = 26
 MACD_SIGNAL = 9
+
+# 止盈止损默认参数
+DEFAULT_TP_RATIO = 0.15
+DEFAULT_SL_RATIO = -0.10
+DEFAULT_TPSL_DAYS = 10
 
 # 缓存常量
 MAX_CACHE_SIZE = 5
@@ -113,6 +117,166 @@ COLOR_POPUP_BG = 'rgba(26, 29, 35, 0.95)'
 # 配置文件名
 CONFIG_FILENAME = 'config.json'
 
+# ==================== 中文字符串常量 ====================
+# 通用
+TXT_READY = '就绪'
+TXT_NO_DATA = '无数据'
+TXT_LOAD_FAILED = '加载失败'
+TXT_DAY = '天'
+TXT_DAY_PREFIX = '第'
+
+# 列表表头
+TXT_COL_DATETIME = '日期时间'
+TXT_COL_SYMBOL = '股票代码'
+TXT_COL_FOCUS_DATE = '关注日期'
+LIST_HEADER_LABELS = [TXT_COL_DATETIME, TXT_COL_SYMBOL, TXT_COL_FOCUS_DATE]
+
+# 文件解析
+TXT_CONFIG_READ_FAILED = '配置文件读取失败，使用默认配置'
+TXT_FILE_DECODE_FAILED = '无法解码文件'
+TXT_COL_INSUFFICIENT = '列数不足'
+TXT_SKIPPED = '已跳过'
+TXT_SYMBOL_EMPTY = '股票代码为空'
+TXT_FIELD_PARSE_FAILED = '字段解析失败'
+TXT_NO_VALID_DATE = '无有效关注日期，保留行'
+TXT_FILE_PARSE_DONE = '文件解析完成'
+TXT_TOTAL_LINES = '总行数'
+TXT_VALID_ITEMS = '有效项'
+TXT_SKIP_COUNT = '跳过'
+
+# 缓存
+TXT_CACHE_EXPIRED = '缓存过期'
+TXT_CACHE_HIT = '缓存命中'
+TXT_CACHE_LRU_EVICT = 'LRU淘汰缓存'
+TXT_CACHE_WRITE = '缓存写入'
+TXT_CURRENT_CACHE_COUNT = '当前缓存数'
+
+# 数据加载
+TXT_REQUEST_DATA = '请求行情数据'
+TXT_NO_DATA_CHECK_LOCAL = '未获取到数据（检查本地day文件）'
+TXT_DATA_LOAD_EXCEPTION = '数据加载异常'
+
+# Popup
+TXT_OPEN = '开'
+TXT_HIGH = '高'
+TXT_LOW = '低'
+TXT_CLOSE = '收'
+TXT_AMOUNT = '额'
+TXT_BILLION = '亿'
+TXT_VS_ATTENTION = 'vs关注日'
+
+# K线图
+TXT_PRICE = '价格'
+TXT_VOLUME = '成交量'
+
+# 止盈止损
+TXT_TAKE_PROFIT = '止盈'
+TXT_STOP_LOSS = '止损'
+TXT_FIRST_TP = '先止盈'
+TXT_FIRST_SL = '先止损'
+TXT_NOT_TRIGGERED = '未触发'
+TXT_TPSL_CALC_FAILED = '止盈止损计算失败'
+TXT_TP_PCT = '止盈%:'
+TXT_SL_PCT = '止损%:'
+TXT_DAYS_LABEL = '天数:'
+TXT_UPDATE = '更新'
+TXT_TPSL_DAYS_MUST_POSITIVE = '止盈止损天数必须大于0'
+TXT_TPSL_UPDATED = '止盈止损已更新'
+TXT_PLEASE_SELECT_STOCK_DATE = '请先选择股票和关注日期'
+TXT_PLEASE_SELECT_STOCK = '请先选择股票'
+
+# 工具栏
+TXT_ATTENTION_DATE = '关注日'
+TXT_TONGHUASHUN = '同花顺'
+TXT_JUMP_TO_THS = '跳转到同花顺查看当前股票'
+TXT_TP_PCT_TOOLTIP = '止盈百分比，如15表示15%'
+TXT_SL_PCT_TOOLTIP = '止损百分比（负数），如-10表示止损10%'
+TXT_TPSL_DAYS_TOOLTIP = '止盈止损交易日天数，如10表示10个交易日'
+TXT_TPSL_UPDATE_TOOLTIP = '根据新的止盈止损设置刷新计算结果'
+
+# 菜单
+TXT_FILE_MENU = '文件(&F)'
+TXT_OPEN_FILE = '\U0001f4c1 打开文件...'
+TXT_EXIT = '退出'
+TXT_VIEW_MENU = '视图(&V)'
+TXT_ZOOM_IN = '\U0001f50d 放大'
+TXT_ZOOM_OUT = '\U0001f50b 缩小'
+TXT_RESET_VIEW = '\U0001f504 重置视图'
+TXT_EXPORT_PNG = '\U0001f4ce 导出PNG...'
+TXT_HELP_MENU = '帮助(&H)'
+TXT_ABOUT = '关于...'
+
+# 右键菜单
+TXT_ZOOM_IN_MENU = '\U0001f50d 放大 (Zoom In)'
+TXT_ZOOM_OUT_MENU = '\U0001f50b 缩小 (Zoom Out)'
+TXT_RESET_VIEW_MENU = '\U0001f504 重置视图 (Reset)'
+TXT_EXPORT_PNG_MENU = '\U0001f4ce 导出PNG (Export)'
+
+# 导出
+TXT_EXPORT_SUCCESS = '导出成功'
+TXT_CHART_EXPORTED = '图表已导出'
+TXT_EXPORT_FAILED = '导出PNG失败'
+TXT_PNG_IMAGE = 'PNG图片'
+TXT_EXPORT_PNG_TITLE = '导出PNG'
+TXT_IMAGE_SAVED = '图片已保存至'
+TXT_SAVE_FAILED = '保存失败'
+
+# 文件对话框
+TXT_SELECT_FILE = '选择观察点文件'
+TXT_TAB_FILE_FILTER = 'Tab分隔文件 (*.txt *.csv *.tsv);;所有文件 (*)'
+TXT_ALL_FILE_FILTER = '所有文件 (*)'
+TXT_FILE_LOADING = '文件加载中...'
+
+# 加载结果
+TXT_LOAD_SUCCESS = '加载成功'
+TXT_VALID = '有效'
+TXT_LOAD_COMPLETE = '加载完成'
+TXT_VALID_RECORDS = '有效记录'
+TXT_SKIPPED_LINES = '跳过行数'
+TXT_LOAD_FAILED_TITLE = '加载失败'
+TXT_CANNOT_PARSE = '未能解析出有效数据。\n请检查文件格式。'
+TXT_KLINE_LOADING = '加载行情中...'
+TXT_KLINE_LOADED = 'K线加载完成'
+TXT_KLINE_DATA_LOAD_FAILED = '数据加载失败'
+TXT_LOAD_ERROR = '加载错误'
+TXT_CANNOT_LOAD_DATA = '的行情数据'
+
+# 双击
+TXT_DOUBLE_CLICK_LOCATE = '双击定位'
+TXT_FOCUS_DAY = '焦点日'
+
+# 同花顺
+TXT_JUMPING_THS = '正在跳转同花顺'
+TXT_THS_NOT_FOUND = '未找到同花顺，请手动打开后输入'
+TXT_THS_JUMP = '同花顺跳转'
+TXT_THS_WINDOW_NOT_FOUND = '未找到同花顺窗口，请先打开同花顺再输入'
+TXT_THS_CANNOT_ACTIVATE = '同花顺已打开，但无法激活窗口'
+TXT_THS_LOCATED = '已在同花顺中定位到'
+TXT_DAILY_KLINE = '的日K线'
+TXT_START_THS = '启动同花顺'
+TXT_THS_JUMP_FAILED = '同花顺跳转失败'
+TXT_THS_JUMP_EXCEPTION = '跳转失败'
+TXT_INVALID_PARAMS = '无效参数'
+
+# 关于
+TXT_ABOUT_TITLE = '关于'
+TXT_ABOUT_CONTENT = ('<h3>股票回看分析工具 v0.7</h3>'
+                     '<p>提供K线历史回放与分析功能</p>'
+                     '<p>基于PyQt6 + matplotlib</p>'
+                     '<p>文档编号: SRS-STOCK-REVIEW-V0.7</p>')
+
+# 列表
+TXT_LIST_LOADED = '列表加载完成'
+TXT_KLINE_COUNT = '根K线'
+
+# 窗口标题
+TXT_APP_TITLE = '股票回看分析工具 v0.7'
+TXT_APP_STARTED = '股票回看分析工具启动'
+TXT_PROGRAM_EXIT = '程序退出，退出码='
+
+# 同花顺搜索关键词
+THS_KEYWORDS = ['同花顺', 'THS', 'hexin']
+
 
 def load_config() -> Dict[str, Any]:
     """从工作目录加载config.json配置文件"""
@@ -130,7 +294,7 @@ def load_config() -> Dict[str, Any]:
                 file_config = json.load(f)
                 default_config.update(file_config)
         except (json.JSONDecodeError, IOError) as e:
-            Logger.log().warning(f"配置文件读取失败，使用默认配置: {e}")
+            Logger.log().warning(f"{TXT_CONFIG_READ_FAILED}: {e}")
     return default_config
 
 
@@ -153,7 +317,7 @@ class FileParser:
     def parse(self) -> bool:
         """解析文件并返回是否成功"""
         encodings = ['utf-8', 'gb18030', 'gbk']
-        parsed = False
+        raw_lines: List[str] = []
 
         for encoding in encodings:
             try:
@@ -163,7 +327,7 @@ class FileParser:
             except (UnicodeDecodeError, IOError):
                 continue
         else:
-            Logger.log().error(f"无法解码文件: {self.filepath}")
+            Logger.log().error(f"{TXT_FILE_DECODE_FAILED}: {self.filepath}")
             return False
 
         self.total_lines = len(raw_lines)
@@ -177,7 +341,8 @@ class FileParser:
 
             fields = line.split('\t')
             if len(fields) < 2:
-                Logger.log().warning(f"行{line_num}: 列数不足({len(fields)})，已跳过")
+                Logger.log().warning(
+                    f"{TXT_COL_INSUFFICIENT}({len(fields)}) {TXT_SKIPPED}")
                 self.skipped_lines += 1
                 continue
 
@@ -185,11 +350,16 @@ class FileParser:
             symbol = fields[1].strip()
 
             if not symbol:
-                Logger.log().warning(f"行{line_num}: 股票代码为空，已跳过")
+                Logger.log().warning(
+                    f"{TXT_SYMBOL_EMPTY} {TXT_SKIPPED}")
                 self.skipped_lines += 1
                 continue
 
-            focus_dates = []
+            focus_dates: List[int] = []
+            tp_ratio = DEFAULT_TP_RATIO
+            sl_ratio = DEFAULT_SL_RATIO
+            float_count = 0
+
             for i in range(2, len(fields)):
                 fd_raw = fields[i].strip()
                 if not fd_raw:
@@ -198,31 +368,40 @@ class FileParser:
                     fd_int = int(fd_raw)
                     focus_dates.append(fd_int)
                 except ValueError:
-                    Logger.log().warning(
-                        f"行{line_num}: 关注日期解析失败[{fd_raw}]")
+                    try:
+                        fd_float = float(fd_raw)
+                        if float_count == 0:
+                            tp_ratio = fd_float
+                        elif float_count == 1:
+                            sl_ratio = fd_float
+                        float_count += 1
+                    except ValueError:
+                        Logger.log().warning(
+                            f"{TXT_FIELD_PARSE_FAILED}[{fd_raw}]")
 
-            if len(fields) >= 3 and not focus_dates:
-                has_fd_field = any(fields[i].strip() for i in range(2, len(fields)))
+            if len(fields) >= 3 and not focus_dates and float_count == 0:
+                has_fd_field = any(
+                    fields[i].strip() for i in range(2, len(fields)))
                 if has_fd_field:
-                    Logger.log().warning(f"行{line_num}: 无有效关注日期，保留行")
+                    Logger.log().warning(TXT_NO_VALID_DATE)
 
             if not focus_dates:
                 focus_dates = [0]
 
             for fd in focus_dates:
-                self.parsed_data.append([dt_str, symbol, fd])
+                self.parsed_data.append(
+                    [dt_str, symbol, fd, tp_ratio, sl_ratio])
                 self.valid_lines += 1
 
-            parsed = True
-
         Logger.log().info(
-            f"文件解析完成: {self.filepath} | "
-            f"总行数={self.total_lines} 有效项={self.valid_lines} "
-            f"跳过={self.skipped_lines}")
-        return parsed
+            f"{TXT_FILE_PARSE_DONE}: {self.filepath} | "
+            f"{TXT_TOTAL_LINES}={self.total_lines} "
+            f"{TXT_VALID_ITEMS}={self.valid_lines} "
+            f"{TXT_SKIP_COUNT}={self.skipped_lines}")
+        return self.valid_lines > 0
 
     def get_data(self) -> List[List]:
-        """返回解析后的数据列表 [[dt, sym, fd], ...]"""
+        """返回解析后的数据列表 [[dt, sym, fd, tp, sl], ...]"""
         return self.parsed_data
 
 
@@ -244,11 +423,11 @@ class DataCacheManager:
         df, timestamp = self._cache[symbol]
         if (time.time() - timestamp) > self.ttl_seconds:
             del self._cache[symbol]
-            Logger.log().info(f"缓存过期: {symbol}")
+            Logger.log().info(f"{TXT_CACHE_EXPIRED}: {symbol}")
             return None
 
         self._cache.move_to_end(symbol)
-        Logger.log().info(f"缓存命中: {symbol}")
+        Logger.log().info(f"{TXT_CACHE_HIT}: {symbol}")
         return df.copy()
 
     def put(self, symbol: str, df: pd.DataFrame) -> None:
@@ -257,10 +436,12 @@ class DataCacheManager:
             del self._cache[symbol]
         elif len(self._cache) >= self.max_size:
             oldest_key, _ = self._cache.popitem(last=False)
-            Logger.log().info(f"LRU淘汰缓存: {oldest_key}")
+            Logger.log().info(f"{TXT_CACHE_LRU_EVICT}: {oldest_key}")
 
         self._cache[symbol] = (df.copy(), time.time())
-        Logger.log().debug(f"缓存写入: {symbol}, 当前缓存数={len(self._cache)}")
+        Logger.log().debug(
+            f"{TXT_CACHE_WRITE}: {symbol}, "
+            f"{TXT_CURRENT_CACHE_COUNT}={len(self._cache)}")
 
     def clear(self) -> None:
         """清空所有缓存"""
@@ -313,7 +494,7 @@ class DataLoader(QThread):
                 return
 
             Logger.log().info(
-                f"请求行情数据: {symbol} | "
+                f"{TXT_REQUEST_DATA}: {symbol} | "
                 f"{self._start_date} ~ {self._end_date}")
 
             df = self.agent.read_kdata_cache(
@@ -325,14 +506,15 @@ class DataLoader(QThread):
                 return
 
             if df is None or df.empty:
-                self.error_occurred.emit(symbol, "未获取到数据（检查本地day文件）")
+                self.error_occurred.emit(symbol, TXT_NO_DATA_CHECK_LOCAL)
                 return
 
             self.cache_mgr.put(symbol, df)
             self.data_ready.emit(symbol, df)
 
         except Exception as e:
-            Logger.log().error(f"数据加载异常 [{self._symbol}]: {e}")
+            Logger.log().error(
+                f"{TXT_DATA_LOAD_EXCEPTION} [{self._symbol}]: {e}")
             self.error_occurred.emit(self._symbol, str(e))
 
 
@@ -361,7 +543,8 @@ class IndicatorCalc:
         ema_fast = close.ewm(span=fast, adjust=False).mean()
         ema_slow = close.ewm(span=slow, adjust=False).mean()
         result['DIF'] = ema_fast - ema_slow
-        result['DEA'] = result['DIF'].ewm(span=signal_period, adjust=False).mean()
+        result['DEA'] = result['DIF'].ewm(
+            span=signal_period, adjust=False).mean()
         result['MACD'] = 2 * (result['DIF'] - result['DEA'])
         return result
 
@@ -381,7 +564,7 @@ class ViewportController:
         self.visible_count = DEFAULT_VISIBLE_BARS
         self.focus_index = total_bars // 2
         self.view_start: int = 0
-        self._max_view_end: int = total_bars  # 视窗右边界上限，初始限制在焦点日
+        self._max_view_end: int = total_bars
         self._clamp_view()
 
     def set_total_bars(self, count: int) -> None:
@@ -389,7 +572,6 @@ class ViewportController:
         self.total_bars = max(count, 1)
         if self.focus_index >= self.total_bars:
             self.focus_index = self.total_bars - 1
-        # 初始时焦点日在末尾，视窗右边界不超过焦点日
         self.view_start = max(0, self.focus_index + 1 - self.visible_count)
         self._max_view_end = self.focus_index + 1
         self._clamp_view()
@@ -401,7 +583,6 @@ class ViewportController:
         右移超出视窗时自动扩展；左移超出时自动收缩。
         """
         self.focus_index = max(0, min(index, self.total_bars - 1))
-        # 重置右边界限制：焦点日之后的日期不默认显示
         self._max_view_end = self.focus_index + 1
         self._follow_focus()
 
@@ -414,16 +595,13 @@ class ViewportController:
         """
         self.focus_index = max(0, min(index, self.total_bars - 1))
         start, end = self.get_visible_range()
-        # 焦点仍在可视范围内，无需移动
         if start <= self.focus_index < end:
             return
-        # 焦点超出可视范围，视窗跟随但不重置_max_view_end
         if self.focus_index >= end:
-            # 右移超出：扩展右边界
             self._max_view_end = self.focus_index + 1
-            self.view_start = max(0, self.focus_index + 1 - self.visible_count)
+            self.view_start = max(
+                0, self.focus_index + 1 - self.visible_count)
         elif self.focus_index < start:
-            # 左移超出：视窗左移
             self.view_start = self.focus_index
 
     def set_focus_by_date(self, date_val: int, dates: List[int]) -> bool:
@@ -509,10 +687,6 @@ class ViewportController:
         self.view_start = max(0, self.focus_index + 1 - self.visible_count)
         self._follow_focus()
 
-    def _center_on_focus(self) -> None:
-        """将焦点定位到可视区间（委托给_follow_focus）"""
-        self._follow_focus()
-
     def _follow_focus(self) -> None:
         """视窗跟随焦点：确保焦点在可视范围内
         
@@ -522,11 +696,10 @@ class ViewportController:
         """
         self._clamp_view()
         start, end = self.get_visible_range()
-        # 焦点在视窗右侧之外 → 扩展右边界，视窗右移使焦点在末尾
         if self.focus_index >= end:
             self._max_view_end = self.focus_index + 1
-            self.view_start = max(0, self.focus_index + 1 - self.visible_count)
-        # 焦点在视窗左侧之外 → 左移视窗使焦点在起始
+            self.view_start = max(
+                0, self.focus_index + 1 - self.visible_count)
         elif self.focus_index < start:
             self.view_start = self.focus_index
 
@@ -534,7 +707,8 @@ class ViewportController:
         """确保视窗参数在合法范围内"""
         self.visible_count = max(MIN_VISIBLE_BARS,
                                 min(MAX_VISIBLE_BARS, self.visible_count))
-        self.focus_index = max(0, min(self.focus_index, self.total_bars - 1))
+        self.focus_index = max(
+            0, min(self.focus_index, self.total_bars - 1))
 
 
 # ==================== 表现层 ====================
@@ -546,7 +720,7 @@ class PopupWidget(QWidget):
         super().__init__(parent)
         self.setWindowFlags(Qt.WindowType.Tool |
                             Qt.WindowType.FramelessWindowHint)
-        self.setFixedSize(170, 145)
+        self.setFixedSize(170, 180)
         self._data: Optional[Dict] = None
         self._drag_pos: Optional[QPoint] = None
         self._setup_ui()
@@ -562,7 +736,6 @@ class PopupWidget(QWidget):
             f"color:{COLOR_TEXT_PRIMARY};font-weight:bold;font-size:12px;"
             f"padding-bottom:4px;")
 
-        # 价格行布局：左列和右列
         price_layout = QHBoxLayout()
         price_layout.setSpacing(8)
 
@@ -579,7 +752,8 @@ class PopupWidget(QWidget):
         right_col.setSpacing(1)
         self.lbl_close = QLabel()
         self.lbl_change = QLabel()
-        for lbl in [self.lbl_close, self.lbl_change]:
+        self.lbl_change_pct = QLabel()
+        for lbl in [self.lbl_close, self.lbl_change, self.lbl_change_pct]:
             lbl.setStyleSheet(f"font-size:10px;font-weight:bold;")
             right_col.addWidget(lbl)
 
@@ -593,14 +767,18 @@ class PopupWidget(QWidget):
 
         self.lbl_vol = QLabel()
         self.lbl_amt = QLabel()
+        self.lbl_focus_ratio = QLabel()
         for lbl in [self.lbl_vol, self.lbl_amt]:
             lbl.setStyleSheet(f"color:{COLOR_TEXT_MUTED};font-size:10px;")
+        self.lbl_focus_ratio.setStyleSheet(
+            f"color:{COLOR_TEXT_SECONDARY};font-size:10px;font-weight:bold;")
 
         layout.addWidget(self.lbl_title)
         layout.addLayout(price_layout)
         layout.addWidget(sep)
         layout.addWidget(self.lbl_vol)
         layout.addWidget(self.lbl_amt)
+        layout.addWidget(self.lbl_focus_ratio)
 
         self.setStyleSheet(
             f"background-color:{COLOR_POPUP_BG};"
@@ -614,7 +792,7 @@ class PopupWidget(QWidget):
         self.setGraphicsEffect(shadow)
 
     def show_data(self, x: int, y: int,
-                 data: Dict[str, Any]) -> None:
+                  data: Dict[str, Any]) -> None:
         """显示K线数据弹窗"""
         self._data = data
         date_str = str(data.get('date', ''))
@@ -630,19 +808,48 @@ class PopupWidget(QWidget):
 
         self.lbl_title.setText(date_str)
 
-        self.lbl_open.setText(f"开 {o:.2f}")
-        self.lbl_high.setText(f"高 {h:.2f}")
-        self.lbl_low.setText(f"低 {l:.2f}")
+        self.lbl_open.setText(f"{TXT_OPEN} {o:.2f}")
+        self.lbl_high.setText(f"{TXT_HIGH} {h:.2f}")
+        self.lbl_low.setText(f"{TXT_LOW} {l:.2f}")
 
-        self.lbl_close.setText(f"收 {c:.2f}")
+        self.lbl_close.setText(f"{TXT_CLOSE} {c:.2f}")
         self.lbl_close.setStyleSheet(
             f"color:{up_color if c >= o else dn_color};")
-        self.lbl_change.setText(f"{'+' if c >= o else ''}{(c-o):.2f}")
+        change_val = c - o
+        self.lbl_change.setText(
+            f"{'+' if change_val >= 0 else ''}{change_val:.2f}")
         self.lbl_change.setStyleSheet(
+            f"color:{up_color if c >= o else dn_color};")
+        if o > 0:
+            change_pct = (c - o) / o * 100
+            self.lbl_change_pct.setText(
+                f"{'+' if change_pct >= 0 else ''}{change_pct:.2f}%")
+        else:
+            self.lbl_change_pct.setText("--")
+        self.lbl_change_pct.setStyleSheet(
             f"color:{up_color if c >= o else dn_color};")
 
         self.lbl_vol.setText(f"Vol {v:,}")
-        self.lbl_amt.setText(f"额 {amt/100000000:.2f}亿")
+        self.lbl_amt.setText(
+            f"{TXT_AMOUNT} {amt/100000000:.2f}{TXT_BILLION}")
+
+        # 焦点日期 vs 关注日期涨跌比
+        attention_close = data.get('attention_close', 0)
+        focus_date_val = data.get('focus_date', 0)
+        attention_date_val = data.get('attention_date', 0)
+        if attention_close > 0 and focus_date_val != attention_date_val:
+            ratio_vs_att = (c - attention_close) / attention_close * 100
+            self.lbl_focus_ratio.setText(
+                f"{TXT_VS_ATTENTION} "
+                f"{'+' if ratio_vs_att >= 0 else ''}{ratio_vs_att:.2f}%")
+            self.lbl_focus_ratio.setStyleSheet(
+                f"color:{COLOR_RED_UP if ratio_vs_att >= 0 else COLOR_GREEN_DOWN};"
+                f"font-size:10px;font-weight:bold;")
+        else:
+            self.lbl_focus_ratio.setText("")
+            self.lbl_focus_ratio.setStyleSheet(
+                f"color:{COLOR_TEXT_SECONDARY};"
+                f"font-size:10px;font-weight:bold;")
 
         # 定位弹窗：x, y 是相对于父窗口的坐标
         parent = self.parentWidget()
@@ -705,11 +912,8 @@ class KlineCanvas(FigureCanvas):
         self.fig = Figure(figsize=(12, 6),
                           dpi=100,
                           facecolor=COLOR_BG_PRIMARY)
-        # 主图：K线+MA（底部留20px空白给日期标签和附图之间的间距）
         self.ax_main = self.fig.add_axes([0.08, 0.47, 0.88, 0.40])
-        # 成交量附图
         self.ax_vol = self.fig.add_axes([0.08, 0.28, 0.88, 0.14])
-        # MACD附图
         self.ax_macd = self.fig.add_axes([0.08, 0.08, 0.88, 0.16])
 
         super().__init__(self.fig)
@@ -722,8 +926,11 @@ class KlineCanvas(FigureCanvas):
         self.df_indicator: Optional[pd.DataFrame] = None
         self.viewport = ViewportController()
         self.focus_date_val: int = 0
+        self.attention_date_val: int = 0
         self._symbol_display: str = ''
         self._list_panel_width: int = LIST_PANEL_FIXED_WIDTH
+        self._tpsl_text: str = ''
+        self._tpsl_html: str = ''
 
         self.selected_index: Optional[int] = None
         self.crosshair_visible = False
@@ -751,10 +958,15 @@ class KlineCanvas(FigureCanvas):
 
     def load_and_draw(self, df: pd.DataFrame,
                       focus_date: int,
-                      symbol: str = '') -> Optional[int]:
+                      symbol: str = '',
+                      tp_ratio: float = DEFAULT_TP_RATIO,
+                      sl_ratio: float = DEFAULT_SL_RATIO,
+                      agent: Optional[TdxDataAgent] = None,
+                      tpsl_days: int = DEFAULT_TPSL_DAYS) -> Optional[int]:
         """加载带指标的DataFrame并绘制K线图，返回焦点索引"""
         self.df_indicator = df
         self.focus_date_val = focus_date
+        self.attention_date_val = focus_date
         self._symbol_display = symbol
         dates = df['r_date'].tolist()
 
@@ -763,12 +975,15 @@ class KlineCanvas(FigureCanvas):
         if not found and len(dates) > 0:
             self.viewport.set_focus_by_index(len(dates) // 2)
 
+        self._calc_tpsl(
+            df, focus_date, tp_ratio, sl_ratio, agent, tpsl_days)
+
         self.selected_index = None
         self._draw_chart()
         return self.viewport.focus_index
 
     def redraw_with_new_focus(self, focus_date: int) -> None:
-        """切换焦点日时重绘（复用已有数据）"""
+        """切换焦点日时重绘（复用已有数据），不重算止盈止损"""
         if self.df_indicator is None or self.df_indicator.empty:
             return
         self.focus_date_val = focus_date
@@ -777,15 +992,82 @@ class KlineCanvas(FigureCanvas):
         self.selected_index = None
         self._draw_chart()
 
+    def _calc_tpsl(self, df: pd.DataFrame, focus_date: int,
+                   tp_ratio: float, sl_ratio: float,
+                   agent: Optional[TdxDataAgent] = None,
+                   tpsl_days: int = DEFAULT_TPSL_DAYS) -> None:
+        """计算止盈止损信息并生成显示文本"""
+        self._tpsl_text = ''
+        self._tpsl_html = ''
+        if df is None or df.empty or focus_date <= 0:
+            return
+        if agent is None:
+            return
+
+        try:
+            focus_rows = df[df['r_date'] == focus_date]
+            if focus_rows.empty:
+                return
+            base_price = float(focus_rows['r_close'].values[0])
+
+            tp_price = base_price * (1 + tp_ratio)
+            sl_price = base_price * (1 + sl_ratio)
+
+            focus_pos = df.index.get_loc(focus_rows.index[0])
+            next_pos = focus_pos + 1
+            if next_pos >= len(df):
+                return
+
+            start_date = int(df.iloc[next_pos]['r_date'])
+            end_pos = min(next_pos + tpsl_days, len(df) - 1)
+            end_date = int(df.iloc[end_pos]['r_date'])
+
+            result = agent.get_takeprofit_stoploss_value(
+                df, start_date, end_date, tp_price, sl_price)
+
+            if result is None:
+                return
+
+            tp_days, sl_days, tp_first, sl_first, row_no, arrival_day = result
+
+            display_day = row_no + 1
+            tp_label = TXT_FIRST_TP if tp_first == 1 else ''
+            sl_label = TXT_FIRST_SL if sl_first == -1 else ''
+            first_label = tp_label or sl_label or TXT_NOT_TRIGGERED
+
+            self._tpsl_text = (
+                f"  |  {TXT_TAKE_PROFIT}>{tp_days}{TXT_DAY} "
+                f"{TXT_STOP_LOSS}>{sl_days}{TXT_DAY}  "
+                f"{first_label} {TXT_DAY_PREFIX}{display_day}{TXT_DAY}"
+                f"({arrival_day})")
+
+            if tp_first == 1:
+                first_html = (
+                    f"<b style='color:{COLOR_RED_UP}'>"
+                    f"{TXT_FIRST_TP}</b>")
+            elif sl_first == -1:
+                first_html = (
+                    f"<b style='color:#60A5FA'>"
+                    f"{TXT_FIRST_SL}</b>")
+            else:
+                first_html = TXT_NOT_TRIGGERED
+
+            self._tpsl_html = (
+                f"  |  {TXT_TAKE_PROFIT}&gt;{tp_days}{TXT_DAY} "
+                f"{TXT_STOP_LOSS}&gt;{sl_days}{TXT_DAY}  "
+                f"{first_html} "
+                f"{TXT_DAY_PREFIX}{display_day}{TXT_DAY}"
+                f"({arrival_day})")
+        except Exception as e:
+            Logger.log().warning(f"{TXT_TPSL_CALC_FAILED}: {e}")
+
     def _adjust_axes_layout(self) -> None:
         """根据画布实际宽度动态调整axes左边距，使主图与左侧列表对齐"""
         canvas_w = self.width()
         if canvas_w <= 0:
             return
-        # 计算列表宽度在画布中的占比
         total_w = canvas_w + self._list_panel_width
         left_frac = self._list_panel_width / total_w
-        # 保留价格轴标签空间（约40px）
         axis_label_frac = 40 / canvas_w
         left_frac = left_frac - axis_label_frac
         left_frac = max(0.05, min(0.20, left_frac))
@@ -796,7 +1078,7 @@ class KlineCanvas(FigureCanvas):
         self.ax_macd.set_position([left_frac, 0.08, width_frac, 0.16])
 
     def _draw_chart(self) -> None:
-        """核心绑定方法：执行全量绑制"""
+        """核心绘制方法：执行全量绘制"""
         if self.df_indicator is None or self.df_indicator.empty:
             self._clear_axes()
             return
@@ -816,15 +1098,6 @@ class KlineCanvas(FigureCanvas):
         ax_vol = self.ax_vol
         ax_macd = self.ax_macd
 
-        # 顶部显示股票代码和焦点日期
-        title_text = (f"{self._symbol_display}  "
-                      f"关注日: {self.focus_date_val}"
-                      if self._symbol_display else "")
-        if title_text:
-            ax_m.set_title(title_text, fontsize=11, fontweight='bold',
-                           color=COLOR_TEXT_PRIMARY, loc='left',
-                           pad=6)
-
         self._draw_candles(ax_m, view_df, n, start_idx)
 
         ma_colors = {5: COLOR_MA5, 10: COLOR_MA10,
@@ -839,16 +1112,13 @@ class KlineCanvas(FigureCanvas):
                               color=color, linewidth=1.0,
                               label=f'MA{period}', alpha=0.85)
 
-        # 绘制成交量附图
         self._draw_volume(ax_vol, view_df, n)
-
         self._draw_macd(ax_macd, view_df, n)
 
         ax_m.set_xlim(-0.5, n - 0.5)
         ax_vol.set_xlim(-0.5, n - 0.5)
         ax_macd.set_xlim(-0.5, n - 0.5)
 
-        # 日期只显示在主图下方，附图不显示重复日期
         step = max(1, n // 8)
         tick_pos = list(range(0, n, step))
         tick_labels = [str(view_df.iloc[i]['r_date'])
@@ -865,12 +1135,35 @@ class KlineCanvas(FigureCanvas):
                     facecolor=COLOR_BG_SECONDARY,
                     edgecolor=COLOR_BG_TERTIARY,
                     labelcolor=COLOR_TEXT_SECONDARY)
-        ax_m.set_ylabel('价格', fontsize=9, color=COLOR_TEXT_SECONDARY)
-        ax_vol.set_ylabel('成交量', fontsize=8, color=COLOR_TEXT_SECONDARY)
+        ax_m.set_ylabel(TXT_PRICE, fontsize=9, color=COLOR_TEXT_SECONDARY)
+        ax_vol.set_ylabel(TXT_VOLUME, fontsize=8, color=COLOR_TEXT_SECONDARY)
         ax_vol.tick_params(labelsize=7)
         ax_macd.set_ylabel('MACD', fontsize=9, color=COLOR_TEXT_SECONDARY)
         ax_macd.axhline(y=0, color=COLOR_BG_TERTIARY,
                         linestyle='-', linewidth=0.6)
+
+        # 关注日期虚线框
+        if self.attention_date_val > 0:
+            att_rows = df[df['r_date'] == self.attention_date_val]
+            if not att_rows.empty:
+                att_abs_idx = df.index.get_loc(att_rows.index[0])
+                att_rel_idx = att_abs_idx - start_idx
+                if 0 <= att_rel_idx < n:
+                    for ax in [ax_m, ax_vol, ax_macd]:
+                        y_lo, y_hi = ax.get_ylim()
+                        for x_pos in [att_rel_idx - 0.4,
+                                      att_rel_idx + 0.4]:
+                            ax.plot([x_pos, x_pos], [y_lo, y_hi],
+                                    linestyle='--', color=COLOR_TEXT_MUTED,
+                                    linewidth=0.8, alpha=0.6)
+                        ax.plot([att_rel_idx - 0.4, att_rel_idx + 0.4],
+                                [y_hi, y_hi], linestyle='--',
+                                color=COLOR_TEXT_MUTED, linewidth=0.8,
+                                alpha=0.6)
+                        ax.plot([att_rel_idx - 0.4, att_rel_idx + 0.4],
+                                [y_lo, y_lo], linestyle='--',
+                                color=COLOR_TEXT_MUTED, linewidth=0.8,
+                                alpha=0.6)
 
         if self.selected_index is not None and self.crosshair_visible:
             rel_idx = self.selected_index - start_idx
@@ -904,33 +1197,35 @@ class KlineCanvas(FigureCanvas):
             ax.plot([i, i], [l, h], color=color,
                     linewidth=0.7, alpha=0.85)
 
-        # 显示阶段最高/最低价：使用box上下小提示，不使用完整横线
+        # 阶段最高/最低价标注
         valid_high = view_df['r_high'].dropna()
         valid_low = view_df['r_low'].dropna()
         if not valid_high.empty:
             max_price = valid_high.max()
             max_rel_idx = valid_high.idxmax() - start_idx
             if 0 <= max_rel_idx < n:
-                ax.annotate(f'{max_price:.2f}',
-                            xy=(max_rel_idx, max_price),
-                            xytext=(0, 5), textcoords='offset points',
-                            color=COLOR_RED_UP, fontsize=7, fontweight='bold',
-                            ha='center', va='bottom',
-                            bbox=dict(boxstyle='round,pad=0.2',
-                                      facecolor=COLOR_BG_SECONDARY,
-                                      edgecolor=COLOR_RED_UP, alpha=0.8))
+                ax.annotate(
+                    f'{max_price:.2f}',
+                    xy=(max_rel_idx, max_price),
+                    xytext=(0, 5), textcoords='offset points',
+                    color=COLOR_RED_UP, fontsize=7, fontweight='bold',
+                    ha='center', va='bottom',
+                    bbox=dict(boxstyle='round,pad=0.2',
+                              facecolor=COLOR_BG_SECONDARY,
+                              edgecolor=COLOR_RED_UP, alpha=0.8))
         if not valid_low.empty:
             min_price = valid_low.min()
             min_rel_idx = valid_low.idxmin() - start_idx
             if 0 <= min_rel_idx < n:
-                ax.annotate(f'{min_price:.2f}',
-                            xy=(min_rel_idx, min_price),
-                            xytext=(0, -5), textcoords='offset points',
-                            color=COLOR_GREEN_DOWN, fontsize=7, fontweight='bold',
-                            ha='center', va='top',
-                            bbox=dict(boxstyle='round,pad=0.2',
-                                      facecolor=COLOR_BG_SECONDARY,
-                                      edgecolor=COLOR_GREEN_DOWN, alpha=0.8))
+                ax.annotate(
+                    f'{min_price:.2f}',
+                    xy=(min_rel_idx, min_price),
+                    xytext=(0, -5), textcoords='offset points',
+                    color=COLOR_GREEN_DOWN, fontsize=7, fontweight='bold',
+                    ha='center', va='top',
+                    bbox=dict(boxstyle='round,pad=0.2',
+                              facecolor=COLOR_BG_SECONDARY,
+                              edgecolor=COLOR_GREEN_DOWN, alpha=0.8))
 
     def _draw_volume(self, ax, view_df: pd.DataFrame, n: int) -> None:
         """绘制成交量柱状图"""
@@ -952,7 +1247,6 @@ class KlineCanvas(FigureCanvas):
                 colors_vol.append(COLOR_GREEN_DOWN)
 
         bar_width = max(0.5, n * 0.006)
-        valid_mask = view_df['volume'].notna()
         volumes = view_df['volume'].fillna(0)
         ax.bar(np.arange(n), volumes, width=bar_width,
                color=colors_vol, alpha=0.75, edgecolor='none')
@@ -999,7 +1293,7 @@ class KlineCanvas(FigureCanvas):
                   labelcolor=COLOR_TEXT_SECONDARY)
 
     def _draw_crosshair(self, ax, view_df: pd.DataFrame,
-                       rel_idx: int) -> None:
+                        rel_idx: int) -> None:
         """在指定位置绘制十字光标"""
         row = view_df.iloc[rel_idx]
         c = row['r_close'] if not pd.isna(row['r_close']) else 0
@@ -1074,8 +1368,8 @@ class KlineCanvas(FigureCanvas):
             index: K线索引
             show_crosshair: 是否显示十字光标
             show_popup: 是否显示Popup
-            avoid_occlude: 是否避免Popup遮挡K线（单击时避开，双击时直接显示）
-            allow_view_move: 是否允许视窗跟随移动（右移扩展时需要）
+            avoid_occlude: 是否避免Popup遮挡K线
+            allow_view_move: 是否允许视窗跟随移动
         """
         start_idx, end_idx = self.viewport.get_visible_range()
         if index < 0 or index >= self.viewport.total_bars:
@@ -1089,44 +1383,41 @@ class KlineCanvas(FigureCanvas):
         else:
             self.viewport.set_focus_without_move(index)
 
-        # 只在明确要求时显示Popup
         if show_popup and show_crosshair and self.df_indicator is not None:
             if 0 <= index < len(self.df_indicator):
                 row = self.df_indicator.iloc[index]
                 popup_data = {
-                    'date': int(row['r_date']) if pd.notna(row.get('r_date')) else 0,
+                    'date': int(row['r_date'])
+                        if pd.notna(row.get('r_date')) else 0,
                     'open': row['r_open'],
                     'high': row['r_high'],
                     'low': row['r_low'],
                     'close': row['r_close'],
                     'volume': row.get('volume', 0),
                     'amount': row.get('amount', 0),
+                    'focus_date': int(row['r_date'])
+                        if pd.notna(row.get('r_date')) else 0,
+                    'attention_date': self.attention_date_val,
+                    'attention_close': self._get_attention_close(),
                 }
-                # 根据焦点日期在可视区域的位置智能选择popup显示方向
                 start_idx, end_idx = self.viewport.get_visible_range()
                 rel_idx = index - start_idx
                 visible_count = end_idx - start_idx
 
-                # popup作为canvas子窗口，使用相对坐标
                 canvas_rect = self.geometry()
                 chart_left_offset = 20
                 popup_bottom_offset = 160
 
                 if avoid_occlude:
-                    # 单击模式：Popup避开遮挡选中K线
-                    # K线在可视区域左侧 → Popup显示在右侧
-                    # K线在可视区域右侧 → Popup显示在左侧
                     if rel_idx < visible_count * 0.4:
                         px = chart_left_offset + int(
                             canvas_rect.width() * 0.55)
                     elif rel_idx > visible_count * 0.6:
                         px = chart_left_offset
                     else:
-                        # K线在中间 → Popup显示在右侧
                         px = chart_left_offset + int(
                             canvas_rect.width() * 0.55)
                 else:
-                    # 双击模式：直接显示详细Popup
                     if rel_idx > visible_count * 0.6:
                         px = chart_left_offset
                     else:
@@ -1145,25 +1436,30 @@ class KlineCanvas(FigureCanvas):
         self._draw_chart()
 
     def zoom_in(self) -> None:
+        """放大"""
         self.viewport.zoom_in()
         self.zoom_changed.emit('in')
         self._draw_chart()
 
     def zoom_out(self) -> None:
+        """缩小"""
         self.viewport.zoom_out()
         self.zoom_changed.emit('out')
         self._draw_chart()
 
     def reset_view(self) -> None:
+        """重置视图"""
         self.viewport.reset()
         self.zoom_changed.emit('reset')
         self._draw_chart()
 
     def pan_left(self) -> None:
+        """向左平移"""
         self.viewport.pan_left()
         self._draw_chart()
 
     def pan_right(self) -> None:
+        """向右平移"""
         self.viewport.pan_right()
         self._draw_chart()
 
@@ -1174,7 +1470,6 @@ class KlineCanvas(FigureCanvas):
         if index < 0 or index >= len(self.df_indicator):
             return False
         row = self.df_indicator.iloc[index]
-        # 停牌判断：成交量为0 或 开盘/收盘价为NaN/0
         vol = row.get('volume', 0)
         open_p = row.get('r_open', None)
         close_p = row.get('r_close', None)
@@ -1184,6 +1479,16 @@ class KlineCanvas(FigureCanvas):
             return False
         return True
 
+    def _get_attention_close(self) -> float:
+        """获取关注日期的收盘价"""
+        if self.df_indicator is None or self.attention_date_val <= 0:
+            return 0.0
+        rows = self.df_indicator[
+            self.df_indicator['r_date'] == self.attention_date_val]
+        if rows.empty:
+            return 0.0
+        return float(rows['r_close'].values[0])
+
     def move_focus_prev(self) -> Optional[int]:
         """焦点前移到上一个交易日（跳过停牌），显示Popup"""
         if self.df_indicator is None or self.viewport.total_bars == 0:
@@ -1192,7 +1497,6 @@ class KlineCanvas(FigureCanvas):
         current_idx = self.viewport.focus_index
         new_idx = current_idx - 1
 
-        # 向前查找下一个有数据的交易日
         while new_idx >= 0 and not self._is_trading_day(new_idx):
             new_idx -= 1
 
@@ -1211,7 +1515,6 @@ class KlineCanvas(FigureCanvas):
         current_idx = self.viewport.focus_index
         new_idx = current_idx + 1
 
-        # 向后查找下一个有数据的交易日
         while new_idx < self.viewport.total_bars and not self._is_trading_day(new_idx):
             new_idx += 1
 
@@ -1229,12 +1532,14 @@ class KlineCanvas(FigureCanvas):
                             facecolor=COLOR_BG_PRIMARY,
                             edgecolor='none',
                             bbox_inches='tight')
-            Logger.log().info(f"图表已导出: {save_path}")
+            Logger.log().info(f"{TXT_CHART_EXPORTED}: {save_path}")
             QMessageBox.information(
-                self, '导出成功', f'图片已保存至:\n{save_path}')
+                self, TXT_EXPORT_SUCCESS,
+                f'{TXT_IMAGE_SAVED}:\n{save_path}')
         except Exception as e:
-            Logger.log().error(f"导出PNG失败: {e}")
-            QMessageBox.warning(self, '导出失败', f'保存失败:\n{e}')
+            Logger.log().error(f"{TXT_EXPORT_FAILED}: {e}")
+            QMessageBox.warning(self, TXT_EXPORT_FAILED,
+                                f'{TXT_SAVE_FAILED}:\n{e}')
 
     def keyPressEvent(self, event) -> None:
         """处理键盘事件"""
@@ -1267,12 +1572,12 @@ class KlineCanvas(FigureCanvas):
             f"QMenu::item:hover{{background:{COLOR_SELECTION};"
             f"color:{COLOR_TEXT_PRIMARY};}}")
 
-        act_zoom_in = menu.addAction("\U0001f50d 放大 (Zoom In)")
-        act_zoom_out = menu.addAction("\U0001f50b 缩小 (Zoom Out)")
+        act_zoom_in = menu.addAction(TXT_ZOOM_IN_MENU)
+        act_zoom_out = menu.addAction(TXT_ZOOM_OUT_MENU)
         menu.addSeparator()
-        act_reset = menu.addAction("\U0001f504 重置视图 (Reset)")
+        act_reset = menu.addAction(TXT_RESET_VIEW_MENU)
         menu.addSeparator()
-        act_export = menu.addAction("\U0001f4ce 导出PNG (Export)")
+        act_export = menu.addAction(TXT_EXPORT_PNG_MENU)
 
         action = menu.exec(event.globalPos())
         if action == act_zoom_in:
@@ -1351,7 +1656,8 @@ class ListPanel(QWidget):
         """加载数据到列表"""
         self.table.setRowCount(len(data))
         for row_idx, row_data in enumerate(data):
-            dt_str, symbol, fd = row_data
+            dt_str, symbol = row_data[0], row_data[1]
+            fd = row_data[2] if len(row_data) > 2 else 0
 
             dt_item = QTableWidgetItem(str(dt_str)[:19])
             dt_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -1367,7 +1673,7 @@ class ListPanel(QWidget):
             fd_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             self.table.setItem(row_idx, LIST_COL_FOCUS_DATE, fd_item)
 
-        Logger.log().info(f"列表加载完成: {len(data)} 条记录")
+        Logger.log().info(f"{TXT_LIST_LOADED}: {len(data)}")
 
     def select_row(self, row: int) -> None:
         """程序化选中某行"""
@@ -1394,8 +1700,8 @@ class ListPanel(QWidget):
         return dt, sym, fd
 
     def _on_row_changed(self, current_row: int,
-                       current_col: int,
-                       prev_row: int, prev_col: int) -> None:
+                        current_col: int,
+                        prev_row: int, prev_col: int) -> None:
         """行选择变更回调"""
         if current_row >= 0:
             self.row_selected.emit(current_row)
@@ -1406,7 +1712,7 @@ class MainWindow(QMainWindow):
 
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("股票回看分析工具 v0.7")
+        self.setWindowTitle(TXT_APP_TITLE)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.window_size = tuple(CONFIG.get('default_window_size',
                                           [DEFAULT_WINDOW_WIDTH,
@@ -1418,6 +1724,10 @@ class MainWindow(QMainWindow):
 
         self.current_symbol = ''
         self.current_focus_date = 0
+        self.current_attention_date = 0
+        self.current_tp_ratio = DEFAULT_TP_RATIO
+        self.current_sl_ratio = DEFAULT_SL_RATIO
+        self.current_tpsl_days = DEFAULT_TPSL_DAYS
         self.list_data: List[List] = []
 
         self._setup_ui()
@@ -1437,7 +1747,6 @@ class MainWindow(QMainWindow):
         self.list_panel = ListPanel()
         splitter.addWidget(self.list_panel)
 
-        # 右侧：工具栏 + K线画布
         right_widget = QWidget()
         right_layout = QVBoxLayout(right_widget)
         right_layout.setContentsMargins(0, 0, 0, 0)
@@ -1448,10 +1757,23 @@ class MainWindow(QMainWindow):
         toolbar_layout.setContentsMargins(8, 4, 8, 4)
         toolbar_layout.setSpacing(6)
 
-        self.btn_jump_ths = QPushButton("同花顺")
+        self.lbl_stock_info = QLabel("")
+        self.lbl_stock_info.setStyleSheet(
+            f"color:{COLOR_TEXT_PRIMARY};font-weight:bold;font-size:12px;"
+            f"padding:0px 4px;")
+        self.lbl_stock_info.setAlignment(Qt.AlignmentFlag.AlignVCenter)
+        toolbar_layout.addWidget(self.lbl_stock_info)
+
+        sep0 = QLabel("|")
+        sep0.setStyleSheet(f"color:{COLOR_TEXT_MUTED};font-size:12px;")
+        sep0.setFixedWidth(10)
+        sep0.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        toolbar_layout.addWidget(sep0)
+
+        self.btn_jump_ths = QPushButton(TXT_TONGHUASHUN)
         self.btn_jump_ths.setFixedHeight(28)
         self.btn_jump_ths.setFixedWidth(72)
-        self.btn_jump_ths.setToolTip("跳转到同花顺查看当前股票")
+        self.btn_jump_ths.setToolTip(TXT_JUMP_TO_THS)
         self.btn_jump_ths.setStyleSheet(
             f"QPushButton{{background:{COLOR_BG_TERTIARY};"
             f"color:{COLOR_TEXT_PRIMARY};border:1px solid {COLOR_SELECTION};"
@@ -1459,6 +1781,95 @@ class MainWindow(QMainWindow):
             f"QPushButton:hover{{background:{COLOR_SELECTION};}}"
             f"QPushButton:pressed{{background:{COLOR_BG_TERTIARY};}}")
         toolbar_layout.addWidget(self.btn_jump_ths)
+
+        sep = QLabel("|")
+        sep.setStyleSheet(f"color:{COLOR_TEXT_MUTED};font-size:12px;")
+        sep.setFixedWidth(10)
+        sep.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        toolbar_layout.addWidget(sep)
+
+        # 止盈百分比
+        lbl_tp = QLabel(TXT_TP_PCT)
+        lbl_tp.setStyleSheet(
+            f"color:{COLOR_TEXT_SECONDARY};font-size:11px;")
+        toolbar_layout.addWidget(lbl_tp)
+
+        self.edit_tp = QSpinBox()
+        self.edit_tp.setRange(1, 100)
+        self.edit_tp.setValue(int(DEFAULT_TP_RATIO * 100))
+        self.edit_tp.setFixedWidth(56)
+        self.edit_tp.setFixedHeight(24)
+        self.edit_tp.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.edit_tp.setSuffix('%')
+        spinbox_style = (
+            f"QSpinBox{{background:{COLOR_BG_TERTIARY};"
+            f"color:{COLOR_TEXT_PRIMARY};border:1px solid {COLOR_BG_TERTIARY};"
+            f"border-radius:3px;font-size:11px;padding:1px 2px;}}"
+            f"QSpinBox:focus{{border:1px solid {COLOR_SELECTION};}}"
+            f"QSpinBox::up-button{{width:14px;border:none;background:{COLOR_BG_TERTIARY};}}"
+            f"QSpinBox::down-button{{width:14px;border:none;background:{COLOR_BG_TERTIARY};}}"
+            f"QSpinBox::up-arrow{{width:6px;height:6px;border-left:3px solid transparent;"
+            f"border-right:3px solid transparent;border-bottom:4px solid {COLOR_TEXT_MUTED};}}"
+            f"QSpinBox::down-arrow{{width:6px;height:6px;border-left:3px solid transparent;"
+            f"border-right:3px solid transparent;border-top:4px solid {COLOR_TEXT_MUTED};}}")
+        self.edit_tp.setStyleSheet(spinbox_style)
+        self.edit_tp.setToolTip(TXT_TP_PCT_TOOLTIP)
+        toolbar_layout.addWidget(self.edit_tp)
+
+        # 止损百分比
+        lbl_sl = QLabel(TXT_SL_PCT)
+        lbl_sl.setStyleSheet(
+            f"color:{COLOR_TEXT_SECONDARY};font-size:11px;")
+        toolbar_layout.addWidget(lbl_sl)
+
+        self.edit_sl = QSpinBox()
+        self.edit_sl.setRange(-100, -1)
+        self.edit_sl.setValue(int(DEFAULT_SL_RATIO * 100))
+        self.edit_sl.setFixedWidth(56)
+        self.edit_sl.setFixedHeight(24)
+        self.edit_sl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.edit_sl.setSuffix('%')
+        self.edit_sl.setStyleSheet(spinbox_style)
+        self.edit_sl.setToolTip(TXT_SL_PCT_TOOLTIP)
+        toolbar_layout.addWidget(self.edit_sl)
+
+        # 止盈止损交易日天数
+        lbl_days = QLabel(TXT_DAYS_LABEL)
+        lbl_days.setStyleSheet(
+            f"color:{COLOR_TEXT_SECONDARY};font-size:11px;")
+        toolbar_layout.addWidget(lbl_days)
+
+        self.edit_tpsl_days = QSpinBox()
+        self.edit_tpsl_days.setRange(1, 999)
+        self.edit_tpsl_days.setValue(DEFAULT_TPSL_DAYS)
+        self.edit_tpsl_days.setFixedWidth(52)
+        self.edit_tpsl_days.setFixedHeight(24)
+        self.edit_tpsl_days.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.edit_tpsl_days.setStyleSheet(spinbox_style)
+        self.edit_tpsl_days.setToolTip(TXT_TPSL_DAYS_TOOLTIP)
+        toolbar_layout.addWidget(self.edit_tpsl_days)
+
+        # 更新按钮
+        self.btn_tpsl_update = QPushButton(TXT_UPDATE)
+        self.btn_tpsl_update.setFixedHeight(24)
+        self.btn_tpsl_update.setFixedWidth(48)
+        self.btn_tpsl_update.setToolTip(TXT_TPSL_UPDATE_TOOLTIP)
+        self.btn_tpsl_update.setStyleSheet(
+            f"QPushButton{{background:{COLOR_BG_TERTIARY};"
+            f"color:{COLOR_TEXT_PRIMARY};border:1px solid {COLOR_SELECTION};"
+            f"border-radius:3px;padding:2px 6px;font-size:11px;}}"
+            f"QPushButton:hover{{background:{COLOR_SELECTION};}}"
+            f"QPushButton:pressed{{background:{COLOR_BG_TERTIARY};}}")
+        toolbar_layout.addWidget(self.btn_tpsl_update)
+
+        # 止盈止损结果显示标签（更新按钮后面，支持富文本）
+        self.lbl_tpsl_result = QLabel("")
+        self.lbl_tpsl_result.setStyleSheet(
+            f"color:{COLOR_TEXT_SECONDARY};font-size:11px;padding:0px 4px;")
+        self.lbl_tpsl_result.setAlignment(Qt.AlignmentFlag.AlignVCenter)
+        self.lbl_tpsl_result.setTextFormat(Qt.TextFormat.RichText)
+        toolbar_layout.addWidget(self.lbl_tpsl_result)
+
         toolbar_layout.addStretch()
 
         toolbar_widget = QWidget()
@@ -1506,41 +1917,41 @@ class MainWindow(QMainWindow):
             f"QMenuBar::item:pressed{{"
             f"background:{COLOR_SELECTION};}}")
 
-        file_menu = menubar.addMenu("文件(&F)")
-        act_open = QAction("\U0001f4c1 打开文件...", self)
+        file_menu = menubar.addMenu(TXT_FILE_MENU)
+        act_open = QAction(TXT_OPEN_FILE, self)
         act_open.setShortcut("Ctrl+O")
         act_open.triggered.connect(self._on_open_file)
         file_menu.addAction(act_open)
         file_menu.addSeparator()
-        act_exit = QAction("退出", self)
+        act_exit = QAction(TXT_EXIT, self)
         act_exit.setShortcut("Alt+F4")
         act_exit.triggered.connect(self.close)
         file_menu.addAction(act_exit)
 
-        view_menu = menubar.addMenu("视图(&V)")
-        act_zoom_in = QAction("\U0001f50d 放大", self)
+        view_menu = menubar.addMenu(TXT_VIEW_MENU)
+        act_zoom_in = QAction(TXT_ZOOM_IN, self)
         act_zoom_in.setShortcut("Ctrl++")
         act_zoom_in.triggered.connect(self.kline_canvas.zoom_in)
         view_menu.addAction(act_zoom_in)
 
-        act_zoom_out = QAction("\U0001f50b 缩小", self)
+        act_zoom_out = QAction(TXT_ZOOM_OUT, self)
         act_zoom_out.setShortcut("Ctrl+-")
         act_zoom_out.triggered.connect(self.kline_canvas.zoom_out)
         view_menu.addAction(act_zoom_out)
 
-        act_reset = QAction("\U0001f504 重置视图", self)
+        act_reset = QAction(TXT_RESET_VIEW, self)
         act_reset.setShortcut("Ctrl+R")
         act_reset.triggered.connect(self.kline_canvas.reset_view)
         view_menu.addAction(act_reset)
         view_menu.addSeparator()
 
-        act_export = QAction("\U0001f4ce 导出PNG...", self)
+        act_export = QAction(TXT_EXPORT_PNG, self)
         act_export.setShortcut("Ctrl+S")
         act_export.triggered.connect(self._on_export_png)
         view_menu.addAction(act_export)
 
-        help_menu = menubar.addMenu("帮助(&H)")
-        act_about = QAction("关于...", self)
+        help_menu = menubar.addMenu(TXT_HELP_MENU)
+        act_about = QAction(TXT_ABOUT, self)
         act_about.triggered.connect(self._show_about)
         help_menu.addAction(act_about)
 
@@ -1553,12 +1964,8 @@ class MainWindow(QMainWindow):
             f"color:{COLOR_TEXT_SECONDARY};font-size:11px;"
             f"border-top:1px solid {COLOR_BG_TERTIARY};}}")
 
-        self.status_label = QLabel("就绪")
-        self.info_label = QLabel("")
-        self.info_label.setAlignment(Qt.AlignmentFlag.AlignRight)
-
-        self.status_bar.addWidget(self.status_label, stretch=3)
-        self.status_bar.addPermanentWidget(self.info_label, stretch=2)
+        self.status_label = QLabel(TXT_READY)
+        self.status_bar.addWidget(self.status_label, stretch=1)
 
     def _apply_window_style(self) -> None:
         """应用主窗口深色主题"""
@@ -1589,13 +1996,14 @@ class MainWindow(QMainWindow):
         self.kline_canvas.export_requested.connect(self._on_export_png)
 
         self.btn_jump_ths.clicked.connect(self._on_jump_ths)
+        self.btn_tpsl_update.clicked.connect(self._on_tpsl_update)
 
     def _on_open_file(self) -> None:
         """打开文件对话框"""
         file_path, _ = QFileDialog.getOpenFileName(
-            self, "选择观察点文件",
+            self, TXT_SELECT_FILE,
             os.path.dirname(os.path.realpath(__file__)),
-            "Tab分隔文件 (*.txt *.csv *.tsv);;所有文件 (*)")
+            TXT_TAB_FILE_FILTER)
         if not file_path:
             return
 
@@ -1603,7 +2011,7 @@ class MainWindow(QMainWindow):
 
     def _load_file(self, filepath: str) -> None:
         """加载并解析文件"""
-        self.status_label.setText("文件加载中...")
+        self.status_label.setText(TXT_FILE_LOADING)
         QApplication.processEvents()
 
         parser = FileParser(filepath)
@@ -1611,9 +2019,9 @@ class MainWindow(QMainWindow):
 
         if not success:
             QMessageBox.warning(
-                self, '加载失败',
-                f'未能解析出有效数据。\n请检查文件格式。')
-            self.status_label.setText("就绪")
+                self, TXT_LOAD_FAILED_TITLE,
+                TXT_CANNOT_PARSE)
+            self.status_label.setText(TXT_READY)
             return
 
         self.list_data = parser.get_data()
@@ -1622,29 +2030,40 @@ class MainWindow(QMainWindow):
         self.kline_canvas.draw()
         self.current_symbol = ''
         self.current_focus_date = 0
-        self.info_label.setText("")
+        self.lbl_stock_info.setText("")
 
-        msg = (f"加载成功 | 有效:{parser.valid_lines} "
-              f"跳过:{parser.skipped_lines}")
+        msg = (f"{TXT_LOAD_SUCCESS} | {TXT_VALID}:{parser.valid_lines} "
+              f"{TXT_SKIPPED}:{parser.skipped_lines}")
         self.status_label.setText(msg)
         Logger.log().info(msg)
 
         QMessageBox.information(
-            self, '加载完成',
-            f'文件: {os.path.basename(filepath)}\n'
-            f'有效记录: {parser.valid_lines}\n'
-            f'跳过行数: {parser.skipped_lines}')
+            self, TXT_LOAD_COMPLETE,
+            f'{TXT_VALID_RECORDS}: {parser.valid_lines}\n'
+            f'{TXT_SKIPPED_LINES}: {parser.skipped_lines}')
 
     def _on_list_row_selected(self, row: int) -> None:
         """列表行选中处理"""
         if row < 0 or row >= len(self.list_data):
             return
 
-        dt, sym, fd = self.list_data[row]
+        item = self.list_data[row]
+        dt, sym = item[0], item[1]
+        fd = item[2] if len(item) > 2 else 0
+        tp_ratio = item[3] if len(item) > 3 else DEFAULT_TP_RATIO
+        sl_ratio = item[4] if len(item) > 4 else DEFAULT_SL_RATIO
+
         self.current_symbol = str(sym).zfill(6)
         self.current_focus_date = int(fd) if fd else 0
-        self.info_label.setText(
-            f"{self.current_symbol} | {self.current_focus_date}")
+        self.current_attention_date = int(fd) if fd else 0
+        self.current_tp_ratio = float(tp_ratio)
+        self.current_sl_ratio = float(sl_ratio)
+        self.edit_tp.setValue(int(self.current_tp_ratio * 100))
+        self.edit_sl.setValue(int(self.current_sl_ratio * 100))
+        self.edit_tpsl_days.setValue(self.current_tpsl_days)
+        self.lbl_stock_info.setText(
+            f"{self.current_symbol}  "
+            f"{TXT_ATTENTION_DATE}:{self.current_attention_date}")
 
         self._request_kline_data()
 
@@ -1654,13 +2073,14 @@ class MainWindow(QMainWindow):
         focus_date = self.current_focus_date
 
         if not symbol or focus_date <= 0:
-            Logger.log().warning(f"无效参数: symbol={symbol}, fd={focus_date}")
+            Logger.log().warning(
+                f"{TXT_INVALID_PARAMS}: symbol={symbol}, fd={focus_date}")
             return
 
         start_date = focus_date - PRELOAD_BARS * 2
         end_date = focus_date + PRELOAD_BARS * 2
 
-        self.status_label.setText(f"加载行情中... {symbol}")
+        self.status_label.setText(f"{TXT_KLINE_LOADING} {symbol}")
         self.loader.load_data(symbol, start_date, end_date)
 
     def _on_data_loaded(self, symbol: str, df: pd.DataFrame) -> None:
@@ -1669,34 +2089,41 @@ class MainWindow(QMainWindow):
             return
 
         if df.empty:
-            self.status_label.setText("无数据")
+            self.status_label.setText(TXT_NO_DATA)
             return
 
         df_calc = IndicatorCalc.calc_all(df)
         self.kline_canvas._list_panel_width = self.list_panel.width()
         focus_idx = self.kline_canvas.load_and_draw(
-            df_calc, self.current_focus_date, symbol=self.current_symbol)
-        self.status_label.setText(f"就绪 | {symbol} | {len(df)} 根K线")
+            df_calc, self.current_focus_date, symbol=self.current_symbol,
+            tp_ratio=self.current_tp_ratio, sl_ratio=self.current_sl_ratio,
+            agent=self.agent, tpsl_days=self.current_tpsl_days)
+        self.status_label.setText(
+            f"{TXT_READY} | {symbol} | {len(df)} {TXT_KLINE_COUNT}")
+
+        # 同步更新工具栏止盈止损结果标签
+        self.lbl_tpsl_result.setText(
+            self.kline_canvas._tpsl_html.strip())
 
         # 数据加载后显示Popup（避开遮挡）
         if focus_idx is not None:
             self.kline_canvas.select_bar(
                 focus_idx, show_popup=True, avoid_occlude=True)
 
-        # 设置键盘焦点到主窗口
         self.setFocus()
 
         Logger.log().info(
-            f"K线加载完成: {symbol} | 条数={len(df)} | "
-            f"焦点日={self.current_focus_date}")
+            f"{TXT_KLINE_LOADED}: {symbol} | "
+            f"{TXT_TOTAL_LINES}={len(df)} | "
+            f"{TXT_FOCUS_DAY}={self.current_focus_date}")
 
     def _on_load_error(self, symbol: str, err_msg: str) -> None:
         """数据加载失败回调"""
-        self.status_label.setText("加载失败")
-        Logger.log().error(f"数据加载失败 [{symbol}]: {err_msg}")
+        self.status_label.setText(TXT_LOAD_FAILED)
+        Logger.log().error(f"{TXT_KLINE_DATA_LOAD_FAILED} [{symbol}]: {err_msg}")
         QMessageBox.warning(
-            self, '加载错误',
-            f'无法加载 {symbol} 的行情数据:\n{err_msg}')
+            self, TXT_LOAD_ERROR,
+            f'{TXT_CANNOT_LOAD_DATA} {symbol}:\n{err_msg}')
 
     def _on_bar_clicked(self, index: int) -> None:
         """K线单击处理：设临时焦点日期，显示十字光标，Popup避开遮挡"""
@@ -1704,7 +2131,7 @@ class MainWindow(QMainWindow):
                                      avoid_occlude=True)
 
     def _on_bar_double_clicked(self, index: int) -> None:
-        """K线双击处理：更新关注日，同步列表选中，显示Popup详细指标"""
+        """K线双击处理：定位到双击日期，显示Popup详细指标"""
         if self.kline_canvas.df_indicator is None:
             return
         row = self.kline_canvas.df_indicator.iloc[index]
@@ -1712,93 +2139,142 @@ class MainWindow(QMainWindow):
         self.current_focus_date = new_fd
         self.kline_canvas.redraw_with_new_focus(new_fd)
 
-        # 双击显示详细Popup
         self.kline_canvas.select_bar(index, show_popup=True)
 
-        # 同步更新列表中同标的的关注日期显示
-        for i, ld in enumerate(self.list_data):
-            sym = str(ld[1]).zfill(6)
-            if sym == self.current_symbol:
-                item = self.list_panel.table.item(i, LIST_COL_FOCUS_DATE)
-                if item:
-                    item.setText(str(new_fd))
-
-        # 同步列表选中到当前行
-        for i, ld in enumerate(self.list_data):
-            sym = str(ld[1]).zfill(6)
-            fd = int(ld[2]) if ld[2] else 0
-            if sym == self.current_symbol and fd == new_fd:
-                self.list_panel.select_row(i)
-                break
-
-        self.info_label.setText(
-            f"{self.current_symbol} | {new_fd}")
+        self.lbl_stock_info.setText(
+            f"{self.current_symbol}  "
+            f"{TXT_ATTENTION_DATE}:{self.current_attention_date}")
         Logger.log().info(
-            f"双击更新关注日: {self.current_symbol} → {new_fd}")
+            f"{TXT_DOUBLE_CLICK_LOCATE}: {self.current_symbol} -> {new_fd}")
 
     def _on_focus_changed(self, index: int) -> None:
-        """键盘←/→焦点变更：更新关注日和状态栏"""
+        """键盘焦点变更：仅更新焦点日期和状态栏，不更新止盈止损"""
         if self.kline_canvas.df_indicator is None:
             return
         if 0 <= index < len(self.kline_canvas.df_indicator):
             row = self.kline_canvas.df_indicator.iloc[index]
             new_fd = int(row['r_date'])
             self.current_focus_date = new_fd
-            self.info_label.setText(
-                f"{self.current_symbol} | {new_fd}")
+            self.kline_canvas.focus_date_val = new_fd
 
     def _on_export_png(self) -> None:
         """导出PNG"""
         default_name = (f"{self.current_symbol}_"
                         f"{self.current_focus_date}.png")
         save_path, _ = QFileDialog.getSaveFileName(
-            self, "导出PNG", default_name,
-            "PNG图片 (*.png);;所有文件 (*)")
+            self, TXT_EXPORT_PNG_TITLE, default_name,
+            f"{TXT_PNG_IMAGE} (*.png);;{TXT_ALL_FILE_FILTER}")
         if save_path:
             self.kline_canvas.export_png(save_path)
 
+    def _on_tpsl_update(self) -> None:
+        """根据输入的止盈止损百分比和天数刷新计算结果（基于关注日期）"""
+        if not self.current_symbol or self.current_attention_date <= 0:
+            self.status_label.setText(TXT_PLEASE_SELECT_STOCK_DATE)
+            return
+
+        tp_val = float(self.edit_tp.value())
+        sl_val = float(self.edit_sl.value())
+        days_val = self.edit_tpsl_days.value()
+
+        if days_val <= 0:
+            self.status_label.setText(TXT_TPSL_DAYS_MUST_POSITIVE)
+            return
+
+        self.current_tp_ratio = tp_val / 100.0
+        self.current_sl_ratio = sl_val / 100.0
+        self.current_tpsl_days = days_val
+
+        if self.kline_canvas.df_indicator is not None:
+            self.kline_canvas._calc_tpsl(
+                self.kline_canvas.df_indicator,
+                self.current_attention_date,
+                self.current_tp_ratio, self.current_sl_ratio,
+                self.agent, self.current_tpsl_days)
+
+        self.status_label.setText(
+            f"{TXT_TPSL_UPDATED}: {TXT_TAKE_PROFIT}{tp_val}% "
+            f"{TXT_STOP_LOSS}{sl_val}% "
+            f"{TXT_DAYS_LABEL}{days_val}{TXT_DAY}")
+
+        self.lbl_tpsl_result.setText(
+            self.kline_canvas._tpsl_html.strip())
+
     def _on_jump_ths(self) -> None:
-        """跳转到同花顺查看当前股票"""
+        """跳转到同花顺查看当前股票
+        
+        参考ths_tools.py的实现重新生成，不调用现有代码。
+        流程：查找窗口 -> 激活窗口 -> 输入代码 -> 确认定位
+        未找到窗口时尝试启动同花顺程序。
+        """
         if not self.current_symbol:
-            self.status_label.setText("请先选择股票")
+            self.status_label.setText(TXT_PLEASE_SELECT_STOCK)
             return
 
         padded_code = self.current_symbol.zfill(6)
-        self.status_label.setText(f"正在跳转同花顺 {padded_code}...")
+        self.status_label.setText(f"{TXT_JUMPING_THS} {padded_code}...")
 
         try:
-            # 1. 查找同花顺窗口
+            # Step 1: 查找同花顺窗口
             ths_window = None
             for window in gw.getAllWindows():
                 if window.title:
-                    for keyword in ["同花顺", "THS", "hexin"]:
+                    for keyword in THS_KEYWORDS:
                         if keyword in window.title:
                             ths_window = window
                             break
                 if ths_window:
                     break
 
+            # Step 2: 未找到窗口 -> 尝试启动同花顺
             if not ths_window:
-                self.status_label.setText(
-                    f"未找到同花顺窗口，请先打开同花顺再输入 {padded_code}")
-                QMessageBox.information(
-                    self, "同花顺跳转",
-                    f"未找到同花顺窗口，请先打开同花顺再输入 {padded_code}")
-                return
+                launched = False
+                ths_paths = [
+                    r"C:\同花顺软件\同花顺\hexinlauncher.exe",
+                    r"D:\同花顺\hexin.exe",
+                    r"C:\Program Files\同花顺\hexin.exe",
+                    r"C:\ths\hexin.exe",
+                ]
+                for path in ths_paths:
+                    if os.path.exists(path):
+                        import subprocess
+                        subprocess.Popen([path])
+                        Logger.log().info(f"{TXT_START_THS}: {path}")
+                        launched = True
+                        break
 
-            # 2. 激活窗口
+                if launched:
+                    time.sleep(5)
+                    for window in gw.getAllWindows():
+                        if window.title:
+                            for keyword in THS_KEYWORDS:
+                                if keyword in window.title:
+                                    ths_window = window
+                                    break
+                        if ths_window:
+                            break
+
+                if not ths_window:
+                    self.status_label.setText(
+                        f"{TXT_THS_NOT_FOUND} {padded_code}")
+                    QMessageBox.information(
+                        self, TXT_THS_JUMP,
+                        f"{TXT_THS_WINDOW_NOT_FOUND} {padded_code}")
+                    return
+
+            # Step 3: 激活窗口
             try:
-                ths_window.activate()
                 if ths_window.isMinimized:
                     ths_window.restore()
+                ths_window.activate()
                 time.sleep(0.5)
             except Exception:
-                self.status_label.setText("同花顺已打开，但无法激活窗口")
+                self.status_label.setText(TXT_THS_CANNOT_ACTIVATE)
                 QMessageBox.information(
-                    self, "同花顺跳转", "同花顺已打开，但无法激活窗口")
+                    self, TXT_THS_JUMP, TXT_THS_CANNOT_ACTIVATE)
                 return
 
-            # 3. 输入股票代码并定位
+            # Step 4: 输入股票代码并定位日K线
             time.sleep(1)
             pyautogui.typewrite(padded_code)
             time.sleep(0.5)
@@ -1808,26 +2284,22 @@ class MainWindow(QMainWindow):
             time.sleep(1)
 
             self.status_label.setText(
-                f"已在同花顺中定位到 {padded_code} 的日K线")
+                f"{TXT_THS_LOCATED} {padded_code} {TXT_DAILY_KLINE}")
+            Logger.log().info(f"{TXT_THS_LOCATED}: {padded_code}")
 
         except Exception as e:
-            self.status_label.setText(f"跳转失败: {e}")
-            QMessageBox.warning(self, "同花顺跳转失败", str(e))
+            Logger.log().error(f"{TXT_THS_JUMP_FAILED}: {e}")
+            self.status_label.setText(f"{TXT_THS_JUMP_EXCEPTION}: {e}")
+            QMessageBox.warning(self, TXT_THS_JUMP_FAILED, str(e))
 
     def _show_about(self) -> None:
         """关于对话框"""
-        QMessageBox.about(
-            self, "关于",
-            "<h3>股票回看分析工具 v0.7</h3>"
-            "<p>提供K线历史回放与分析功能</p>"
-            "<p>基于PyQt6 + matplotlib</p>"
-            "<p>文档编号: SRS-STOCK-REVIEW-V0.7</p>")
+        QMessageBox.about(self, TXT_ABOUT_TITLE, TXT_ABOUT_CONTENT)
 
     def keyPressEvent(self, event) -> None:
         """全局键盘事件分发"""
         key = event.key()
 
-        # 左右键和ESC键直接转发给KlineCanvas处理，无需点击获取焦点
         if key in (Qt.Key.Key_Left, Qt.Key.Key_Right, Qt.Key.Key_Escape):
             self.kline_canvas.keyPressEvent(event)
             if event.isAccepted():
@@ -1841,7 +2313,7 @@ class MainWindow(QMainWindow):
             cur_row = self.list_panel.current_row()
             if cur_row < self.list_panel.total_rows() - 1:
                 self.list_panel.select_row(cur_row + 1)
-        elif key == Qt.Key.Key_Return or key == Qt.Key.Key_Enter:
+        elif key in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
             cur_row = self.list_panel.current_row()
             if cur_row >= 0:
                 self._on_list_row_selected(cur_row)
@@ -1870,7 +2342,6 @@ def main():
     font = QFont("Microsoft YaHei UI", 9)
     app.setFont(font)
 
-    # 全局tooltip样式覆盖
     app.setStyleSheet(
         f"QToolTip{{"
         f"background-color:{COLOR_BG_SECONDARY};"
@@ -1883,10 +2354,10 @@ def main():
     window = MainWindow()
     window.show()
 
-    Logger.log().info("股票回看分析工具启动")
+    Logger.log().info(TXT_APP_STARTED)
 
     exit_code = app.exec()
-    Logger.log().info(f"程序退出，退出码={exit_code}")
+    Logger.log().info(f"{TXT_PROGRAM_EXIT}{exit_code}")
     sys.exit(exit_code)
 
 
