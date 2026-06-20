@@ -1,0 +1,43 @@
+# LeetCode 自动化刷题工具 配置文件
+# 复制此文件为 config.local.yaml 并填入真实值
+
+leetcode:
+  base_url: "https://leetcode.cn"
+  graphql_url: "https://leetcode.cn/graphql/"
+
+auth:
+  # 从浏览器开发者工具复制完整的 Cookie 字符串
+  cookie: "LEETCODE_SESSION=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfYXV0aF91c2VyX2lkIjoiNzk1NjUwIiwiX2F1dGhfdXNlcl9iYWNrZW5kIjoiZGphbmdvLmNvbnRyaWIuYXV0aC5iYWNrZW5kcy5Nb2RlbEJhY2tlbmQiLCJfYXV0aF91c2VyX2hhc2giOiJkOWJjNzk2OTYwNzYwMTdlZjQ2YWMzM2RkYWRkYjljY2NhYmRiODMyNmY0NjdkZmYwZmE3MWJkNGNlYzc2ZWNmIiwiaWQiOjc5NTY1MCwiZW1haWwiOiIxMzgxNjk5MzYyMEAxMzkuY29tIiwidXNlcm5hbWUiOiJ4aXNoa3UiLCJ1c2VyX3NsdWciOiJ4aXNoa3UiLCJhdmF0YXIiOiJodHRwczovL2Fzc2V0cy5sZWV0Y29kZS5jbi9hbGl5dW4tbGMtdXBsb2FkL3VzZXJzL2dlLWppYW4tcXVhbi9hdmF0YXJfMTU2NzgyMjY2NC5wbmciLCJwaG9uZV92ZXJpZmllZCI6dHJ1ZSwiZGV2aWNlX2lkIjoiMThjNGU5ZDE0Nzk5NTNlN2ZjZTliZTcwZjQ2YzIwMjEiLCJpcCI6IjExNC45Mi4xMTIuNTMiLCJfdGltZXN0YW1wIjoxNzgxODU0Mjg0LjYxOTk2MDgsImV4cGlyZWRfdGltZV8iOjE3ODQ0MDEyMDAsInZlcnNpb25fa2V5XyI6MCwibGF0ZXN0X3RpbWVzdGFtcF8iOjE3ODE4NTUwMzh9.tMS_8LHrM1__6aM7lNetkWsNuUokKBLWQw2xwdkYGis; csrftoken=01kvVojS2v2cxwBI4GEnmNTjNJHMkc1t"
+
+request:
+  timeout_seconds: 30
+  interval_seconds: 3        # 请求间隔（秒）
+  max_retries: 3
+  retry_backoff: 2           # 指数退避基数
+
+llm:
+  # 网页模式：通过 Playwright 自动化浏览器访问 chat.deepseek.com
+  mode: "browser"                    # browser（网页版）/ api（API版）
+  chat_url: "https://chat.deepseek.com/"
+  headless: true                     # true=无头模式（后台运行）, false=显示浏览器
+  deepseek_cookie: "smidV2=20260619164125a643c7a8857bea1368998753a05146210066744c09e3830f0; .thumbcache_6b2e5483f9d858d7c661c5e276b6a6ae=Vfq5p6VdkswQjHgj7Eom1luEeQotV1aRLgxMPY99gmiAYTkp2IPkauC3wsW0UOWRo0DShAWJIUY9qHqow1w6Hg%3D%3D"                # DeepSeek 登录 Cookie（可选，预置后无需手动登录）
+  timeout_seconds: 120               # 等待 AI 回复超时
+  poll_interval: 2                   # 轮询检查回复间隔（秒）
+  retry_count: 2                     # 失败重试次数
+  # --- 以下为 API 模式参数（mode=api 时生效）---
+  provider: "deepseek"
+  model: "deepseek-chat"
+  api_key: ""
+  base_url: "https://api.deepseek.com/v1"
+  temperature: 0.1
+  max_tokens: 4096
+
+batch:
+  difficulty_filter: []      # ["Easy", "Medium", "Hard"]，空=全部
+  tag_filter: []             # ["Array", "Dynamic Programming"]
+  max_problems: 10
+  start_from_id: 1
+
+output:
+  format: "csv"              # csv / json / markdown
+  directory: "./output"

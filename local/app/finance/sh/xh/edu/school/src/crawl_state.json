@@ -1,0 +1,364 @@
+{
+  "completed": {
+    "区纪律检查委员会、监察委员会": {
+      "articles": 1,
+      "downloaded": 1,
+      "failed": 0
+    },
+    "区委办公室": {
+      "articles": 3,
+      "downloaded": 3,
+      "failed": 0
+    },
+    "区委组织部": {
+      "articles": 4,
+      "downloaded": 4,
+      "failed": 0
+    },
+    "区委宣传部": {
+      "articles": 3,
+      "downloaded": 3,
+      "failed": 0
+    },
+    "区委统战部": {
+      "articles": 1,
+      "downloaded": 1,
+      "failed": 0
+    },
+    "区委社工部": {
+      "articles": 1,
+      "downloaded": 1,
+      "failed": 0
+    },
+    "区委政法委": {
+      "articles": 1,
+      "downloaded": 1,
+      "failed": 0
+    },
+    "区区级机关工作党委": {
+      "articles": 1,
+      "downloaded": 1,
+      "failed": 0
+    },
+    "区委老干部局": {
+      "articles": 1,
+      "downloaded": 1,
+      "failed": 0
+    },
+    "区档案局": {
+      "articles": 1,
+      "downloaded": 1,
+      "failed": 0
+    },
+    "区委党校": {
+      "articles": 1,
+      "downloaded": 1,
+      "failed": 0
+    },
+    "区政府办公室": {
+      "articles": 1,
+      "downloaded": 1,
+      "failed": 0
+    },
+    "区发展和改革委员会": {
+      "articles": 3,
+      "downloaded": 3,
+      "failed": 0
+    },
+    "区新型工业化推进办": {
+      "articles": 3,
+      "downloaded": 3,
+      "failed": 0
+    },
+    "区商务委员会": {
+      "articles": 1,
+      "downloaded": 1,
+      "failed": 0
+    },
+    "区教育局": {
+      "articles": 1,
+      "downloaded": 1,
+      "failed": 0
+    },
+    "区科学技术委员会": {
+      "articles": 3,
+      "downloaded": 3,
+      "failed": 0
+    },
+    "公安分局": {
+      "articles": 3,
+      "downloaded": 3,
+      "failed": 0
+    },
+    "区民政局": {
+      "articles": 7,
+      "downloaded": 7,
+      "failed": 0
+    },
+    "区司法局": {
+      "articles": 3,
+      "downloaded": 3,
+      "failed": 0
+    },
+    "区财政局": {
+      "articles": 5,
+      "downloaded": 5,
+      "failed": 0
+    },
+    "区人力资源和社会保障局": {
+      "articles": 6,
+      "downloaded": 6,
+      "failed": 0
+    },
+    "区规划和自然资源局": {
+      "articles": 4,
+      "downloaded": 4,
+      "failed": 0
+    },
+    "区生态环境局": {
+      "articles": 4,
+      "downloaded": 4,
+      "failed": 0
+    },
+    "区建设和管理委员会": {
+      "articles": 8,
+      "downloaded": 8,
+      "failed": 0
+    },
+    "区文化和旅游局": {
+      "articles": 7,
+      "downloaded": 7,
+      "failed": 0
+    },
+    "区卫生健康委员会": {
+      "articles": 1,
+      "downloaded": 1,
+      "failed": 0
+    },
+    "区退役军人事务局": {
+      "articles": 4,
+      "downloaded": 4,
+      "failed": 0
+    },
+    "区应急管理局": {
+      "articles": 4,
+      "downloaded": 4,
+      "failed": 0
+    },
+    "区审计局": {
+      "articles": 1,
+      "downloaded": 1,
+      "failed": 0
+    },
+    "区市场监督管理局": {
+      "articles": 5,
+      "downloaded": 5,
+      "failed": 0
+    },
+    "区国有资产监督管理委员会": {
+      "articles": 3,
+      "downloaded": 3,
+      "failed": 0
+    },
+    "区体育局": {
+      "articles": 4,
+      "downloaded": 4,
+      "failed": 0
+    },
+    "区统计局": {
+      "articles": 3,
+      "downloaded": 3,
+      "failed": 0
+    },
+    "区医疗保障局": {
+      "articles": 3,
+      "downloaded": 3,
+      "failed": 0
+    },
+    "区绿化和市容管理局": {
+      "articles": 5,
+      "downloaded": 5,
+      "failed": 0
+    },
+    "区住房保障和房屋管理局": {
+      "articles": 5,
+      "downloaded": 5,
+      "failed": 0
+    },
+    "区城市管理行政执法局": {
+      "articles": 3,
+      "downloaded": 3,
+      "failed": 0
+    },
+    "区国动办": {
+      "articles": 3,
+      "downloaded": 3,
+      "failed": 0
+    },
+    "区数据局": {
+      "articles": 2,
+      "downloaded": 2,
+      "failed": 0
+    },
+    "区城市运行管理中心": {
+      "articles": 1,
+      "downloaded": 1,
+      "failed": 0
+    },
+    "区投促办": {
+      "articles": 1,
+      "downloaded": 1,
+      "failed": 0
+    },
+    "区营商服务中心": {
+      "articles": 1,
+      "downloaded": 1,
+      "failed": 0
+    },
+    "区机关事务管理局": {
+      "articles": 4,
+      "downloaded": 4,
+      "failed": 0
+    },
+    "南站管委办": {
+      "articles": 1,
+      "downloaded": 1,
+      "failed": 0
+    },
+    "信访办公室": {
+      "articles": 3,
+      "downloaded": 3,
+      "failed": 0
+    },
+    "（原）区金融办": {
+      "articles": 0,
+      "downloaded": 0
+    },
+    "（原）地区工作办公室": {
+      "articles": 0,
+      "downloaded": 0
+    },
+    "区人大常委办公室": {
+      "articles": 1,
+      "downloaded": 1,
+      "failed": 0
+    },
+    "区政协办公室": {
+      "articles": 1,
+      "downloaded": 1,
+      "failed": 0
+    },
+    "区总工会": {
+      "articles": 4,
+      "downloaded": 4,
+      "failed": 0
+    },
+    "团区委": {
+      "articles": 1,
+      "downloaded": 1,
+      "failed": 0
+    },
+    "区妇联": {
+      "articles": 1,
+      "downloaded": 1,
+      "failed": 0
+    },
+    "区工商联": {
+      "articles": 1,
+      "downloaded": 1,
+      "failed": 0
+    },
+    "区科协": {
+      "articles": 1,
+      "downloaded": 1,
+      "failed": 0
+    },
+    "区残联": {
+      "articles": 3,
+      "downloaded": 3,
+      "failed": 0
+    },
+    "区红十字会": {
+      "articles": 3,
+      "downloaded": 3,
+      "failed": 0
+    },
+    "徐家汇街道": {
+      "articles": 1,
+      "downloaded": 1,
+      "failed": 0
+    },
+    "天平街道": {
+      "articles": 1,
+      "downloaded": 1,
+      "failed": 0
+    },
+    "湖南街道": {
+      "articles": 1,
+      "downloaded": 1,
+      "failed": 0
+    },
+    "枫林街道": {
+      "articles": 1,
+      "downloaded": 1,
+      "failed": 0
+    },
+    "斜土街道": {
+      "articles": 1,
+      "downloaded": 1,
+      "failed": 0
+    },
+    "田林街道": {
+      "articles": 1,
+      "downloaded": 1,
+      "failed": 0
+    },
+    "长桥街道": {
+      "articles": 1,
+      "downloaded": 1,
+      "failed": 0
+    },
+    "虹梅街道": {
+      "articles": 1,
+      "downloaded": 1,
+      "failed": 0
+    },
+    "康健街道": {
+      "articles": 1,
+      "downloaded": 1,
+      "failed": 0
+    },
+    "龙华街道": {
+      "articles": 1,
+      "downloaded": 1,
+      "failed": 0
+    },
+    "凌云街道": {
+      "articles": 1,
+      "downloaded": 1,
+      "failed": 0
+    },
+    "漕河泾街道": {
+      "articles": 1,
+      "downloaded": 1,
+      "failed": 0
+    },
+    "华泾镇": {
+      "articles": 1,
+      "downloaded": 1,
+      "failed": 0
+    },
+    "教育系统": {
+      "articles": 125,
+      "downloaded": 125,
+      "failed": 0
+    },
+    "卫生健康系统": {
+      "articles": 25,
+      "downloaded": 24,
+      "failed": 0,
+      "no_attachment": 1
+    }
+  },
+  "failed": {}
+}
