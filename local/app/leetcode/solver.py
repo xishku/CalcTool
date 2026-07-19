@@ -15,22 +15,40 @@ from models import Problem
 logger = logging.getLogger(__name__)
 
 # 生成代码的 System Prompt
-SYSTEM_PROMPT = """你是 LeetCode 算法专家。根据题目描述和要求，生成 JavaScript 解法代码。
+SYSTEM_PROMPT = """你是一名资深 LeetCode 算法专家，专门输出 JavaScript 解题代码。
 
-要求：
-1. 只输出可运行的 JavaScript 代码，不要包含任何代码块标记（```javascript 或 ```）
-2. 严格遵循给定的函数签名
-3. 不要添加额外的 import / require / module.exports
-4. 代码前用注释简要说明解题思路和时间复杂度
-5. 力求最优解，如果不会做则输出暴力解
-6. 不要输出除代码以外的任何文字
+【铁律 — 违反任何一条都判定为失败】
+1. 绝对不要输出代码块标记（```javascript 或 ```），直接输出代码
+2. 绝对不要输出解释、分析、总结等任何非代码文字
+3. 严格遵循给定的函数签名，函数名必须一致
+4. 不要写 import / require / module.exports
+5. 代码第一行必须是解题思路注释，第二行必须是复杂度注释
 
-输出格式（严格按此格式）：
-// 思路：xxx
-// 时间复杂度：O(xxx)，空间复杂度：O(xxx)
-var functionName = function(params) {
-    // 你的代码
+【输出格式 — 必须逐字遵循】
+// 思路：（一句话说明算法策略）
+// 时间复杂度：O(?)，空间复杂度：O(?)
+var FUNCTION_NAME = function(param1, param2) {
+    // 解题代码
 };
+
+【备注】优先给出最优解，若不会则给暴力解但必须可运行。
+"""
+
+# Qwen 小模型专用 Prompt — 更强制、更简洁
+SYSTEM_PROMPT_QWEN = """你是 LeetCode 代码生成器。只输出 JavaScript 代码，不要解释。
+
+格式要求：
+// 思路：（一句话说明算法策略）
+// 时间复杂度：O(?)，空间复杂度：O(?)
+var FUNCTION_NAME = function(param1, param2) {
+    // 你的代码
+}
+
+规则：
+- 禁止输出 ```javascript 或 ````
+- 禁止输出任何解释、总结、分析
+- 函数签名必须与题目一致
+- 优先最优解，否则暴力解
 """
 
 STATE_DIR = Path(__file__).parent / ".browser_state"
@@ -478,28 +496,31 @@ class BrowserSolver:
 
 
 class ApiSolver:
-    """基于 OpenAI 兼容 API 的求解器"""
+    """基于 OpenAI 兼容 API 的求解器 — 支持 DeepSeek / Qwen / Ollama / vLLM 等"""
 
     def __init__(self, config: Config):
         from openai import OpenAI
 
         self.cfg = config
-        api_key = config.llm.api_key
-        if not api_key:
-            raise ValueError("LLM API Key 未设置！请在 config.yaml 中配置或设置环境变量 LLM_API_KEY")
-
+        api_key = config.llm.api_key or "not-needed"  # 本地模型无需真实 key
         self.client = OpenAI(api_key=api_key, base_url=config.llm.base_url)
+        logger.info(f"API Solver 初始化: base_url={config.llm.base_url}, model={config.llm.model}")
 
     def solve(self, problem: Problem) -> str:
         user_message = build_user_prompt(problem)
         logger.info(f"正在为 {problem.frontend_id}. {problem.title} 生成代码...")
+
+        # 小模型（Qwen 7B 及同类）用更简洁的 Prompt 避免发散
+        model_lower = self.cfg.llm.model.lower()
+        is_small_model = any(m in model_lower for m in ("qwen", "llama", "mistral", "phi", "gemma"))
+        sys_prompt = SYSTEM_PROMPT_QWEN if is_small_model else SYSTEM_PROMPT
 
         for attempt in range(self.cfg.llm.retry_count + 1):
             try:
                 resp = self.client.chat.completions.create(
                     model=self.cfg.llm.model,
                     messages=[
-                        {"role": "system", "content": SYSTEM_PROMPT},
+                        {"role": "system", "content": sys_prompt},
                         {"role": "user", "content": user_message},
                     ],
                     temperature=self.cfg.llm.temperature,

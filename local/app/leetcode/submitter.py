@@ -73,6 +73,8 @@ class Submitter:
                 problem_slug=problem.title_slug,
                 problem_title=problem.title,
                 difficulty=problem.difficulty,
+                frontend_id=problem.frontend_id,
+                tags=problem.tags,
                 status="Timeout",
                 code=code,
             )
@@ -131,6 +133,8 @@ class Submitter:
             problem_slug=problem.title_slug,
             problem_title=problem.title,
             difficulty=problem.difficulty,
+            frontend_id=problem.frontend_id,
+            tags=problem.tags,
             status=STATUS_MAP.get(status_code, status_msg or f"Unknown({status_code})"),
             status_code=status_code,
             runtime_ms=runtime_ms,

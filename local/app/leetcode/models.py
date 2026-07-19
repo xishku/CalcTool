@@ -53,6 +53,8 @@ class SubmissionResult:
     difficulty: str
     status: str                   # Accepted / Wrong Answer / TLE / ...
     status_code: int = 0          # 原始状态码
+    frontend_id: str = ""         # 显示题号
+    tags: list = field(default_factory=list)  # 题目标签
     runtime_ms: float = 0
     memory_mb: float = 0
     runtime_percentile: float = 0
@@ -80,15 +82,25 @@ class SubmissionResult:
     def to_dict(self) -> dict:
         return {
             "submission_id": self.submission_id,
+            "problem_id": self.frontend_id,
             "problem_slug": self.problem_slug,
             "problem_title": self.problem_title,
             "difficulty": self.difficulty,
+            "tags": self.tags,
             "status": self.status,
+            "status_code": self.status_code,
             "runtime_ms": self.runtime_ms,
             "memory_mb": self.memory_mb,
             "runtime_percentile": self.runtime_percentile,
+            "memory_percentile": self.memory_percentile,
+            "language": self.language,
             "passed": self.passed_rate,
-            "error_message": self.error_message[:200] if self.error_message else "",
+            "error_message": self.error_message,
+            "failed_testcase": self.failed_testcase,
+            "expected_output": self.expected_output,
+            "actual_output": self.actual_output,
+            "code": self.code,
+            "timestamp": self.timestamp,
         }
 
 

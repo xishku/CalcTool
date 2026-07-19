@@ -1,0 +1,25 @@
+# 运行参数
+runs_per_test: 5
+warmup_runs: 2
+
+# 数据集参数
+# 注意：Python 纯解释执行对 O(n²)/递归极慢，参数需兼顾四种语言
+array_size: 10000
+matrix_dimension: 200
+fibonacci_n: 35
+prime_limit: 5000000
+hash_data_mb: 10
+string_length: 500000
+pattern_length: 100
+
+# 编译器设置
+c_compiler: "gcc"
+c_flags: "-O2"
+cpp_compiler: "g++"
+cpp_flags: "-O2 -std=c++17"
+java_home: ""
+java_vm_args: "-Xms512m -Xmx2g"
+python_bin: "python"
+
+# 输出
+output_dir: "./results"

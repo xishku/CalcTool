@@ -26,8 +26,14 @@ class LeetCodeClient:
         """初始化 Session — 设置 Cookie、CSRF Token、User-Agent"""
         cookie_str = self.cfg.auth.cookie
         if cookie_str:
-            # 直接设置 Cookie Header（比 session.cookies 更可靠）
-            self.session.headers["Cookie"] = cookie_str
+            # 用 session.cookies 逐条设置（比 raw Cookie header 更可靠，避免格式问题）
+            for item in cookie_str.split(";"):
+                item = item.strip()
+                if "=" in item:
+                    k, v = item.split("=", 1)
+                    self.session.cookies.set(k.strip(), v.strip(), domain=".leetcode.cn")
+            logger.info(f"已设置 {len(self.session.cookies)} 条 Cookie")
+
         self.session.headers.update({
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                           "AppleWebKit/537.36 (KHTML, like Gecko) "
@@ -36,6 +42,7 @@ class LeetCodeClient:
             "Accept": "application/json, text/plain, */*",
             "Origin": self.base_url,
             "Referer": self.base_url + "/",
+            "x-requested-with": "XMLHttpRequest",
         })
         # 设置 CSRF Token
         csrf = self._extract_csrf()
@@ -103,18 +110,24 @@ class LeetCodeClient:
             except requests.HTTPError as e:
                 # 打印响应体帮助排查
                 try:
-                    body = e.response.text[:500] if e.response is not None else ""
+                    body = e.response.text[:800] if e.response is not None else ""
+                    status = e.response.status_code if e.response is not None else "?"
+                    req_headers = dict(e.response.request.headers) if e.response is not None and e.response.request else {}
                 except Exception:
                     body = ""
+                    status = "?"
+                    req_headers = {}
                 if attempt < max_retries:
                     wait = backoff ** attempt
                     logger.warning(
-                        f"请求失败: {e}，第 {attempt+1}/{max_retries} 次重试，等待 {wait}s...\n"
+                        f"请求失败: HTTP {status} for {method} {url}，"
+                        f"第 {attempt+1}/{max_retries} 次重试，等待 {wait}s...\n"
+                        f"  请求头: {req_headers}\n"
                         f"  响应: {body}"
                     )
                     time.sleep(wait)
                 else:
-                    logger.error(f"请求最终失败，响应: {body}")
+                    logger.error(f"请求最终失败 [HTTP {status}]，响应: {body}")
                     raise
             except requests.RequestException as e:
                 if attempt < max_retries:
@@ -145,30 +158,45 @@ class LeetCodeClient:
         return data.get("data", {})
 
     def verify_auth(self) -> bool:
-        """验证认证状态 — 先预热会话，再通过 GraphQL 查询用户状态"""
+        """验证认证状态 — 访问首页检查是否重定向到登录页"""
+        logger.info("正在验证登录状态...")
         try:
-            # 预热：先 GET 首页，让 leetcode.cn 建立完整会话
-            logger.info("正在验证登录状态...")
-            self.get(self.base_url)
-        except Exception as e:
-            logger.warning(f"首页访问异常（非致命）: {e}")
+            resp = self.get(self.base_url, allow_redirects=False, timeout=self.cfg.request.timeout_seconds)
+            if resp.status_code in (301, 302):
+                location = resp.headers.get("Location", "")
+                if "login" in location.lower():
+                    logger.error(f"Cookie 无效，被重定向到登录页: {location}")
+                    return False
+            # 检查页面内容是否包含登录入口
+            text = resp.text[:2000].lower()
+            if "accounts/login" in text and "isSignedIn" not in text:
+                logger.warning("页面需要登录，可能 Cookie 已过期")
+                return False
 
-        try:
-            query = """
-            query globalData {
-              userStatus {
-                username
-                isSignedIn
-              }
-            }
-            """
-            data = self.graphql(query)
-            user_status = data.get("userStatus", {})
-            if user_status.get("isSignedIn"):
-                username = user_status.get("username", "unknown")
-                logger.info(f"认证成功，用户: {username}")
+            # 尝试 GraphQL 查询确认
+            try:
+                query = """
+                query globalData {
+                  userStatus {
+                    username
+                    isSignedIn
+                  }
+                }
+                """
+                data = self.graphql(query)
+                user_status = data.get("userStatus", {})
+                if user_status.get("isSignedIn"):
+                    username = user_status.get("username", "unknown")
+                    logger.info(f"认证成功，用户: {username}")
+                    return True
+            except Exception as e:
+                logger.warning(f"GraphQL 验证跳过（非致命）: {e}")
+
+            # GraphQL 失败但页面访问成功 → 可能仍然可用
+            if resp.status_code == 200:
+                logger.info("首页访问正常，假定认证有效")
                 return True
-            logger.warning("认证无效，未登录或 Cookie 已过期")
+            logger.warning("认证验证未通过")
             return False
         except Exception as e:
             logger.error(f"认证验证失败: {e}")

@@ -1,0 +1,38 @@
+{
+    "logs": [
+        {
+            "outputFile": "com.calctool.tv.app-mergeReleaseResources-57:/values-v18/values-v18.xml",
+            "map": [
+                {
+                    "source": "C:\\Users\\gejianquan\\.gradle\\caches\\transforms-3\\e6c6e804422160c090bbebbd68da6d83\\transformed\\leanback-1.0.0\\res\\values-v18\\values-v18.xml",
+                    "from": {
+                        "startLines": "2",
+                        "startColumns": "4",
+                        "startOffsets": "55",
+                        "endLines": "10",
+                        "endColumns": "12",
+                        "endOffsets": "642"
+                    },
+                    "to": {
+                        "startLines": "3",
+                        "startColumns": "4",
+                        "startOffsets": "104",
+                        "endLines": "11",
+                        "endColumns": "12",
+                        "endOffsets": "691"
+                    }
+                },
+                {
+                    "source": "C:\\Users\\gejianquan\\.gradle\\caches\\transforms-3\\70631461f10e157e37c3965623f15709\\transformed\\appcompat-1.6.1\\res\\values-v18\\values-v18.xml",
+                    "from": {
+                        "startLines": "2",
+                        "startColumns": "4",
+                        "startOffsets": "55",
+                        "endColumns": "48",
+                        "endOffsets": "99"
+                    }
+                }
+            ]
+        }
+    ]
+}

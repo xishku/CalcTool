@@ -7,7 +7,7 @@ leetcode:
 
 auth:
   # 从浏览器开发者工具复制完整的 Cookie 字符串
-  cookie: "LEETCODE_SESSION=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfYXV0aF91c2VyX2lkIjoiNzk1NjUwIiwiX2F1dGhfdXNlcl9iYWNrZW5kIjoiZGphbmdvLmNvbnRyaWIuYXV0aC5iYWNrZW5kcy5Nb2RlbEJhY2tlbmQiLCJfYXV0aF91c2VyX2hhc2giOiJkOWJjNzk2OTYwNzYwMTdlZjQ2YWMzM2RkYWRkYjljY2NhYmRiODMyNmY0NjdkZmYwZmE3MWJkNGNlYzc2ZWNmIiwiaWQiOjc5NTY1MCwiZW1haWwiOiIxMzgxNjk5MzYyMEAxMzkuY29tIiwidXNlcm5hbWUiOiJ4aXNoa3UiLCJ1c2VyX3NsdWciOiJ4aXNoa3UiLCJhdmF0YXIiOiJodHRwczovL2Fzc2V0cy5sZWV0Y29kZS5jbi9hbGl5dW4tbGMtdXBsb2FkL3VzZXJzL2dlLWppYW4tcXVhbi9hdmF0YXJfMTU2NzgyMjY2NC5wbmciLCJwaG9uZV92ZXJpZmllZCI6dHJ1ZSwiZGV2aWNlX2lkIjoiMThjNGU5ZDE0Nzk5NTNlN2ZjZTliZTcwZjQ2YzIwMjEiLCJpcCI6IjExNC45Mi4xMTIuNTMiLCJfdGltZXN0YW1wIjoxNzgxODU0Mjg0LjYxOTk2MDgsImV4cGlyZWRfdGltZV8iOjE3ODQ0MDEyMDAsInZlcnNpb25fa2V5XyI6MCwibGF0ZXN0X3RpbWVzdGFtcF8iOjE3ODE4NTUwMzh9.tMS_8LHrM1__6aM7lNetkWsNuUokKBLWQw2xwdkYGis; csrftoken=01kvVojS2v2cxwBI4GEnmNTjNJHMkc1t"
+  cookie: "LEETCODE_SESSION=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfYXV0aF91c2VyX2lkIjoiNzk1NjUwIiwiX2F1dGhfdXNlcl9iYWNrZW5kIjoiZGphbmdvLmNvbnRyaWIuYXV0aC5iYWNrZW5kcy5Nb2RlbEJhY2tlbmQiLCJfYXV0aF91c2VyX2hhc2giOiJkOWJjNzk2OTYwNzYwMTdlZjQ2YWMzM2RkYWRkYjljY2NhYmRiODMyNmY0NjdkZmYwZmE3MWJkNGNlYzc2ZWNmIiwiaWQiOjc5NTY1MCwiZW1haWwiOiIxMzgxNjk5MzYyMEAxMzkuY29tIiwidXNlcm5hbWUiOiJ4aXNoa3UiLCJ1c2VyX3NsdWciOiJ4aXNoa3UiLCJhdmF0YXIiOiJodHRwczovL2Fzc2V0cy5sZWV0Y29kZS5jbi9hbGl5dW4tbGMtdXBsb2FkL3VzZXJzL2dlLWppYW4tcXVhbi9hdmF0YXJfMTU2NzgyMjY2NC5wbmciLCJwaG9uZV92ZXJpZmllZCI6dHJ1ZSwiZGV2aWNlX2lkIjoiNGIxMTFiOTJiMTEwNDNlODhiNGU0ZTJiMzE5MjIwZTEiLCJpcCI6IjExNC45Mi4xMTIuNTMiLCJfdGltZXN0YW1wIjoxNzgxODUzNzg4LjE1NzE3MiwiZXhwaXJlZF90aW1lXyI6MTc4NDQwMTIwMCwidmVyc2lvbl9rZXlfIjowLCJsYXRlc3RfdGltZXN0YW1wXyI6MTc4MjI5NzY3N30.cMcElj1GN0NLI0wgOD0a_R8Oj6pzsWOaPV98WQt47AE; csrftoken=FGimLQTv2vvaDv5yDaz85gdWzwqQfxnv"
 
 request:
   timeout_seconds: 30
@@ -17,18 +17,18 @@ request:
 
 llm:
   # 网页模式：通过 Playwright 自动化浏览器访问 chat.deepseek.com
-  mode: "browser"                    # browser（网页版）/ api（API版）
+  mode: "api"                         # browser（网页版）/ api（API版）
   chat_url: "https://chat.deepseek.com/"
   headless: true                     # true=无头模式（后台运行）, false=显示浏览器
-  deepseek_cookie: "smidV2=20260619164125a643c7a8857bea1368998753a05146210066744c09e3830f0; .thumbcache_6b2e5483f9d858d7c661c5e276b6a6ae=Vfq5p6VdkswQjHgj7Eom1luEeQotV1aRLgxMPY99gmiAYTkp2IPkauC3wsW0UOWRo0DShAWJIUY9qHqow1w6Hg%3D%3D"                # DeepSeek 登录 Cookie（可选，预置后无需手动登录）
+  deepseek_cookie: ""                # DeepSeek 登录 Cookie（可选，预置后无需手动登录）
   timeout_seconds: 120               # 等待 AI 回复超时
   poll_interval: 2                   # 轮询检查回复间隔（秒）
   retry_count: 2                     # 失败重试次数
   # --- 以下为 API 模式参数（mode=api 时生效）---
-  provider: "deepseek"
-  model: "deepseek-chat"
-  api_key: ""
-  base_url: "https://api.deepseek.com/v1"
+  provider: "qwen"                   # 模型来源标识
+  model: "qwen2.5-coder:7b"          # Ollama: qwen2.5-coder:7b / qwen2.5:7b
+  api_key: ""                        # 本地模型留空即可（Ollama/vLLM 无需认证）
+  base_url: "http://localhost:11434/v1"  # Ollama 默认, vLLM 用 http://localhost:8000/v1
   temperature: 0.1
   max_tokens: 4096
 

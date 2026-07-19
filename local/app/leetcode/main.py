@@ -75,8 +75,7 @@ def solve_single(
         return 1
 
     # 4. 输出报告
-    reporter.generate([result], format_type="csv")
-    reporter.generate([result], format_type="markdown")
+    reporter.generate([result])
     reporter.print_summary([result])
 
     return 0 if result.is_accepted else 1
@@ -105,7 +104,7 @@ def solve_batch(
         tags=tags,
     )
     questions = list_data.get("questions", [])
-    total = list_data.get("total", 0)
+    total = list_data.get("totalNum", 0)
     logger.info(f"题库总计: {total} 题, 当前页: {len(questions)} 题")
 
     if not questions:
@@ -136,18 +135,19 @@ def solve_batch(
         except Exception as e:
             logger.error(f"处理 {slug} 失败: {e}")
             from models import SubmissionResult
+            f_id = q.get("frontendQuestionId", "")
             results.append(SubmissionResult(
                 submission_id="",
                 problem_slug=slug,
                 problem_title=title,
                 difficulty=diff,
+                frontend_id=f_id,
                 status="Error",
                 error_message=str(e),
             ))
 
     # 3. 输出报告
-    reporter.generate(results, format_type="csv")
-    reporter.generate(results, format_type="markdown")
+    reporter.generate(results)
     reporter.print_summary(results)
 
     return 0 if success == len(results) else 1
@@ -185,11 +185,19 @@ def main():
         logger.error("未配置 LeetCode Cookie！请在 config.yaml 中设置 auth.cookie")
         logger.error("从浏览器开发者工具 → Application → Cookies 复制完整 Cookie 字符串")
         return 1
-    if config.llm.mode == "api" and not config.llm.api_key:
+    # 本地模型（如 Ollama / vLLM）可留空 api_key，远程 API 必须配置
+    is_local_api = (
+        config.llm.mode == "api"
+        and config.llm.base_url
+        and any(host in config.llm.base_url for host in ("127.0.0.1", "localhost", "0.0.0.0"))
+    )
+    if config.llm.mode == "api" and not config.llm.api_key and not is_local_api:
         logger.error("API 模式下未配置 LLM API Key！")
         logger.error("请在 config.yaml 中设置 llm.api_key 或设置环境变量 LLM_API_KEY")
         logger.error("或切换为浏览器模式：llm.mode = \"browser\"")
         return 1
+    if is_local_api:
+        logger.info(f"本地 LLM 模式: base_url={config.llm.base_url}, model={config.llm.model}")
 
     # 初始化组件
     client = LeetCodeClient(config)
@@ -219,12 +227,7 @@ def main():
             # 单题模式
             slug = args.slug
             if not slug and args.id:
-                # 通过 ID 查找 slug：遍历列表匹配
-                list_data = fetcher.get_problem_list(limit=100)
-                for q in list_data.get("questions", []):
-                    if q.get("frontendQuestionId") == str(args.id):
-                        slug = q.get("titleSlug")
-                        break
+                slug = fetcher.search_by_id(str(args.id))
             if not slug:
                 logger.error("请指定 --slug <题目slug> 或 --id <题号>")
                 logger.error("示例: python main.py --slug two-sum")

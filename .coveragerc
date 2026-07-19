@@ -1,0 +1,28 @@
+[run]
+branch = true
+source = src, fund/src, local/app
+omit =
+    */test/*
+    */tests/*
+    */node_modules/*
+    */__pycache__/*
+    */output/*
+    */dist/*
+    */build/*
+    */.venv/*
+    */venv/*
+
+[report]
+exclude_lines =
+    pragma: no cover
+    def __repr__
+    raise NotImplementedError
+    if __name__ == .__main__.:
+    if TYPE_CHECKING:
+    @abstractmethod
+
+show_missing = true
+sort = Miss
+
+[html]
+directory = htmlcov

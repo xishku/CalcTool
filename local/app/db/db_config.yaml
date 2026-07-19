@@ -1,0 +1,20 @@
+# SQLite 数据库配置文件
+# 每个子模块在此声明自己的数据库路径和参数
+
+databases:
+  leetcode:
+    path: "data/leetcode.db"
+    timeout: 5
+
+  stocks:
+    path: "data/stocks.db"
+    timeout: 10
+
+  benchmark:
+    path: "data/benchmark.db"
+
+  budget:
+    path: "../finance/sh/xh/edu/school/data/budget.db"
+
+  observations:
+    path: "../dsp_codebuddy/data/observations.db"

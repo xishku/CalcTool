@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/background">
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:orientation="vertical"
+        android:gravity="center">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="3C电影"
+            android:textSize="48sp"
+            android:textColor="@color/brand"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="华为智慧屏客户端"
+            android:textSize="20sp"
+            android:textColor="@color/text_secondary"
+            android:layout_marginTop="12dp" />
+
+        <ProgressBar
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginTop="32dp"
+            android:indeterminate="true" />
+
+        <TextView
+            android:id="@+id/splash_error"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="32dp"
+            android:layout_marginHorizontal="48dp"
+            android:textSize="14sp"
+            android:textColor="#FF4444"
+            android:gravity="center"
+            android:visibility="gone" />
+
+    </LinearLayout>
+</FrameLayout>

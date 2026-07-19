@@ -9,6 +9,7 @@ __pycache__/       """Python 文件编译后的缓存目录。git上传时会忽
 *.ppt
 *.pptx
 *.pdf
+*.db
 
 *.exe
 *.rar
@@ -29,3 +30,10 @@ test/data
 local/app/leetcode/.browser_state/
 local/app/leetcode/config.local.yaml
 local/app/leetcode/output/
+
+# 测试 / 覆盖率产物
+htmlcov/
+coverage.xml
+.pytest_cache/
+reports/
+*.coverage
